@@ -58,6 +58,11 @@ Or skip FUSE entirely: `APPIMAGE_EXTRACT_AND_RUN=1 ./StreamHub.AppImage`.
   stays out of the way until you reach for it: drag a tile to move a pane and it keeps playing
   where it lands. Choose packed, stacked or side-by-side. With a controller, L3/R3 move between
   panes (the active one wears a blue frame) and R3 in the sidebar closes it.
+- **Couch controller** — a physical gamepad drives the sidebar and the page. The d-pad's
+  highlight is also where the page's hover pointer sits, so hover menus and tooltips open under
+  the selection. The left stick scrolls, and while a video is playing the right stick scrubs
+  through it. LB opens the hidden sidebar, RB hands the pad between sidebar and page, and Back
+  closes whatever is over the page before it means "go back".
 - **Full-window theater mode on YouTube** — the player takes the window to itself with the video
   centred in it, and the top bar hides until you reach for it. Scroll down as usual for the
   description and comments. On by default; the switch is in Settings.

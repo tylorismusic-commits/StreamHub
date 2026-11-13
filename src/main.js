@@ -2466,9 +2466,11 @@ app.on('window-all-closed', () => {
 // other; a single d-pad cannot serve two focus systems at once without them fighting.
 let gamepadReader = null;
 let controllerTarget = 'chrome'; // 'chrome' | 'page' | 'keyboard'
-let controllerCursor = { x: 0, y: 0 };
 let axisTimer = null;
 const controllerAxes = { leftX: 0, leftY: 0, rightX: 0, rightY: 0 };
+// Right-stick scrub accumulates here; the page is asked to seek in whole-second steps rather than
+// on every 50 ms tick, which would just queue up work the player cannot keep up with.
+let axisScrubAccum = 0;
 
 function controllerWc() {
   return viewManager ? viewManager.getActiveWebContents() : null;
@@ -2486,13 +2488,9 @@ function setControllerTarget(target) {
   if (target === 'page') {
     const wc = controllerWc();
     if (wc && !wc.isDestroyed()) wc.focus();
-    // The right stick's virtual pointer starts in the middle of the page rather than at its
-    // top-left corner, so the first nudge moves it from where the eye already is.
-    const view = viewManager && viewManager.active;
-    if (view) {
-      const b = view.getBounds();
-      controllerCursor = { x: b.width / 2, y: b.height / 2 };
-    }
+    // The hover cursor and the focus ring are the same pointer now: put the real mouse position on
+    // whatever the page controller last highlighted, rather than starting a second cursor.
+    pageAction('refresh').then(hoverFromResult);
   } else if (target === 'chrome') {
     if (chromeView && !chromeView.webContents.isDestroyed()) chromeView.webContents.focus();
   }
@@ -2539,27 +2537,38 @@ function pageScroll(dy) {
   });
 }
 
-function pageCursorMove(dx, dy) {
-  const wc = controllerWc();
-  const view = viewManager && viewManager.active;
-  if (!wc || wc.isDestroyed() || !view) return;
-  const b = view.getBounds();
-  controllerCursor.x = Math.max(0, Math.min(b.width, controllerCursor.x + dx));
-  controllerCursor.y = Math.max(0, Math.min(b.height, controllerCursor.y + dy));
-  wc.sendInputEvent({
-    type: 'mouseMove',
-    x: Math.round(controllerCursor.x),
-    y: Math.round(controllerCursor.y),
-  });
-}
-
-function pageCursorClick() {
+// Park the real mouse pointer on the element the page controller is highlighting. Chromium tracks
+// the injected move for hover purposes, so the page's own :hover styling follows the ring without a
+// second cursor to steer.
+function pageHoverAt(x, y) {
   const wc = controllerWc();
   if (!wc || wc.isDestroyed()) return;
-  const x = Math.round(controllerCursor.x);
-  const y = Math.round(controllerCursor.y);
-  wc.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount: 1 });
-  wc.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount: 1 });
+  const zoom = typeof wc.getZoomFactor === 'function' ? wc.getZoomFactor() : 1;
+  wc.sendInputEvent({ type: 'mouseMove', x: Math.round(x * zoom), y: Math.round(y * zoom) });
+}
+
+function hoverFromResult(res) {
+  if (res && typeof res.x === 'number' && typeof res.y === 'number') pageHoverAt(res.x, res.y);
+}
+
+// A move may smooth-scroll the page, which shifts the highlighted element after place() has already
+// returned its point. Re-ask the page where the ring ended up once the scroll has settled, so the
+// pointer and the highlight do not part company. Debounced: rapid d-pad or stick input only leaves
+// one pending sync.
+let hoverSyncTimer = null;
+function hoverSyncSoon() {
+  clearTimeout(hoverSyncTimer);
+  hoverSyncTimer = setTimeout(() => {
+    if (controllerTarget === 'page') pageAction('refresh').then(hoverFromResult);
+  }, 240);
+}
+
+// R3 in a single page: click where the ring is, as a real mouse would. That reaches controls which
+// only respond to a trusted click, or to a menu that opened because the pointer arrived on it.
+function pageFocusClick() {
+  pageAction('focusedPoint').then((pt) => {
+    if (pt && typeof pt.x === 'number' && typeof pt.y === 'number') pageClickAt(pt.x, pt.y);
+  });
 }
 
 // A real click from the page controller's point. Dismissal returns a button's centre instead of
@@ -2673,12 +2682,14 @@ function onControllerButton(button, pressed) {
   // simple "swap" the couch needs, and the active one wears a frame so it is clear which it is.
   if (gridMode && gridPanes.length > 1 && button === BTN.L3) cyclePane(-1);
   else if (gridMode && gridPanes.length > 1 && button === BTN.R3) cyclePane(1);
-  else if (button === BTN.UP) pageAction('move', 'up');
-  else if (button === BTN.DOWN) pageAction('move', 'down');
-  else if (button === BTN.LEFT) pageAction('move', 'left');
-  else if (button === BTN.RIGHT) pageAction('move', 'right');
+  else if (button === BTN.UP) pageAction('move', 'up').then((res) => { hoverFromResult(res); hoverSyncSoon(); });
+  else if (button === BTN.DOWN) pageAction('move', 'down').then((res) => { hoverFromResult(res); hoverSyncSoon(); });
+  else if (button === BTN.LEFT) pageAction('move', 'left').then((res) => { hoverFromResult(res); hoverSyncSoon(); });
+  else if (button === BTN.RIGHT) pageAction('move', 'right').then((res) => { hoverFromResult(res); hoverSyncSoon(); });
   else if (button === BTN.A) {
     pageAction('activate').then((res) => {
+      hoverFromResult(res);
+      hoverSyncSoon();
       if (res && res.input) openControllerKeyboard('page');
     });
   } else if (button === BTN.B) pageAction('back');
@@ -2692,7 +2703,7 @@ function onControllerButton(button, pressed) {
   else if (button === BTN.LT) pageAction('media', 'back');
   else if (button === BTN.RT) pageAction('media', 'forward');
   else if (button === BTN.L3) pageAction('media', 'mute');
-  else if (button === BTN.R3) pageCursorClick();
+  else if (button === BTN.R3) pageFocusClick();
 }
 
 function onControllerAxis(axis, value) {
@@ -2705,11 +2716,28 @@ function onControllerAxis(axis, value) {
 function startAxisTicker() {
   clearInterval(axisTimer);
   axisTimer = setInterval(() => {
-    if (controllerTarget !== 'page') return;
-    const { leftY, rightX, rightY } = controllerAxes;
-    if (Math.abs(leftY) > 0.18) pageScroll(leftY * 140);
-    if (Math.abs(rightX) > 0.18 || Math.abs(rightY) > 0.18) {
-      pageCursorMove(rightX * 16, rightY * 16);
+    if (controllerTarget !== 'page') {
+      axisScrubAccum = 0;
+      return;
+    }
+    const { leftY, rightX } = controllerAxes;
+    if (Math.abs(leftY) > 0.18) {
+      pageScroll(leftY * 140);
+      // The ring follows the page as it scrolls; bring the pointer along once the scroll stops.
+      hoverSyncSoon();
+    }
+    // The right stick scrubs the video. Accumulate a fraction each tick and ask for whole-second
+    // seeks as they build up: at full deflection that is about five seconds of film per second of
+    // holding the stick, and less when it is only part-way over.
+    if (Math.abs(rightX) > 0.3) {
+      axisScrubAccum += rightX * 0.25;
+      const step = Math.trunc(axisScrubAccum);
+      if (step !== 0) {
+        pageAction('seekBy', step);
+        axisScrubAccum -= step;
+      }
+    } else {
+      axisScrubAccum = 0;
     }
   }, 50);
   axisTimer.unref?.();

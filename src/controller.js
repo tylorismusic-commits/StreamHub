@@ -447,6 +447,11 @@ function pageController() {
     return out;
   }
 
+  function pointOf(el) {
+    const r = el.getBoundingClientRect();
+    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+  }
+
   function place(el) {
     const r = el.getBoundingClientRect();
     const b = ensureRing();
@@ -461,6 +466,9 @@ function pageController() {
     } catch {
       // older engines
     }
+    // The point the main process parks the real mouse pointer on, so the highlight and the hover
+    // cursor are the same place rather than two independently controlled things.
+    return pointOf(el);
   }
 
   function clearRing() {
@@ -506,8 +514,8 @@ function pageController() {
     const els = candidates();
     if (!els.length) return { ok: false, reason: 'none' };
     if (!current || !current.isConnected || !els.includes(current)) {
-      place(els[0]);
-      return { ok: true, first: true };
+      const pt = place(els[0]);
+      return { ok: true, first: true, x: pt.x, y: pt.y };
     }
     const cr = current.getBoundingClientRect();
     const cx = cr.left + cr.width / 2;
@@ -548,8 +556,8 @@ function pageController() {
       }
     }
     if (best) {
-      place(best);
-      return { ok: true };
+      const pt = place(best);
+      return { ok: true, x: pt.x, y: pt.y };
     }
     return { ok: false, reason: 'edge' };
   }
@@ -560,8 +568,8 @@ function pageController() {
       const els = candidates();
       if (!els.length) return { ok: false, reason: 'none' };
       el = els[0];
-      place(el);
-      return { ok: true, moved: true, tag: el.tagName.toLowerCase() };
+      const pt = place(el);
+      return { ok: true, moved: true, tag: el.tagName.toLowerCase(), x: pt.x, y: pt.y };
     }
     const tag = el.tagName.toLowerCase();
     const type = (el.getAttribute('type') || '').toLowerCase();
@@ -582,7 +590,8 @@ function pageController() {
       } catch {
         // ignore
       }
-      return { ok: true, input: true, tag, type, name: el.getAttribute('name') || '', placeholder: el.getAttribute('placeholder') || '' };
+      const pt = pointOf(el);
+      return { ok: true, input: true, tag, type, name: el.getAttribute('name') || '', placeholder: el.getAttribute('placeholder') || '', x: pt.x, y: pt.y };
     }
     try {
       el.focus({ preventScroll: true });
@@ -594,7 +603,8 @@ function pageController() {
     } catch {
       // ignore
     }
-    return { ok: true, clicked: true, tag };
+    const pt = pointOf(el);
+    return { ok: true, clicked: true, tag, x: pt.x, y: pt.y };
   }
 
   function back() {
@@ -798,12 +808,18 @@ function pageController() {
     }
   }
 
-  function refresh() {
-    if (current && current.isConnected && isVisible(current)) place(current);
-    else if (current) clearRing();
+  function focusedPoint() {
+    if (!current || !current.isConnected || !isVisible(current)) return null;
+    return pointOf(current);
   }
 
-  window.__streamhubController = { move, activate, back, dismiss, media, seekBy, scroll, refresh, clearRing, setActive };
+  function refresh() {
+    if (current && current.isConnected && isVisible(current)) return place(current);
+    if (current) clearRing();
+    return null;
+  }
+
+  window.__streamhubController = { move, activate, back, dismiss, media, seekBy, scroll, refresh, clearRing, setActive, focusedPoint };
   ensureRing();
 
   // Keep the ring glued to its element as the page scrolls or the window changes size.
