@@ -748,21 +748,58 @@ function pageController() {
     return null;
   }
 
-  // Seek by an arbitrary number of seconds — used by the media keys and MPRIS as well as the
-  // triggers. Netflix goes through its player API; everything else moves the visible <video>.
-  function seekBy(seconds) {
-    const delta = Number(seconds) || 0;
-    const nf = netflixSeekBy(delta * 1000);
-    if (nf) return nf;
+  // Continuous scrubbing (the right stick) must not re-read the player's clock on every step:
+  // Netflix keeps reporting the pre-seek position for a moment, so stepping from it makes the
+  // target jump backwards and the player stutter. Accumulate one target for the whole gesture.
+  const SCRUB_RESET_MS = 900;
+  let scrubTarget = null; // seconds
+  let scrubAt = 0;
+
+  function netflixScrub(deltaSeconds) {
+    if (!window.netflix || !window.netflix.appContext) return null;
+    const sessions = netflixSessions();
+    if (!sessions) return null; // not a Netflix we recognise; fall back to the element
+    if (!sessions.length) return { ok: false, reason: 'no-main-playback' };
+    const { p, st } = sessions[0];
+    try {
+      const now = Date.now();
+      const cur =
+        (typeof p.getCurrentTime === 'function' ? p.getCurrentTime() : (st && st.currentTime) || 0) / 1000;
+      if (scrubTarget == null || now - scrubAt > SCRUB_RESET_MS) scrubTarget = cur;
+      const dur = st && st.duration ? st.duration / 1000 : Infinity;
+      scrubTarget = Math.max(0, Math.min(dur, scrubTarget + deltaSeconds));
+      p.seek(scrubTarget * 1000);
+      scrubAt = now;
+      return { ok: true, time: scrubTarget };
+    } catch {
+      return { ok: false, reason: 'netflix-error' };
+    }
+  }
+
+  function htmlScrub(deltaSeconds) {
     const v = mediaPlayer();
     if (!v) return { ok: false, reason: 'no-video' };
     try {
+      const now = Date.now();
+      if (scrubTarget == null || now - scrubAt > SCRUB_RESET_MS) scrubTarget = v.currentTime;
       const dur = Number.isFinite(v.duration) ? v.duration : 1e9;
-      v.currentTime = Math.max(0, Math.min(dur, v.currentTime + delta));
-      return { ok: true, time: v.currentTime };
+      scrubTarget = Math.max(0, Math.min(dur, scrubTarget + deltaSeconds));
+      v.currentTime = scrubTarget;
+      scrubAt = now;
+      return { ok: true, time: scrubTarget };
     } catch {
       return { ok: false, reason: 'seek-error' };
     }
+  }
+
+  // Seek by an arbitrary number of seconds — used by the right stick, the media keys and MPRIS.
+  // Netflix goes through its player API; everything else moves the visible <video>. The target is
+  // accumulated across calls so a held stick moves smoothly instead of fighting the player's lag.
+  function seekBy(seconds) {
+    const delta = Number(seconds) || 0;
+    const nf = netflixScrub(delta);
+    if (nf) return nf;
+    return htmlScrub(delta);
   }
 
   function media(action) {
