@@ -2488,6 +2488,8 @@ function setControllerTarget(target) {
   if (target === 'page') {
     const wc = controllerWc();
     if (wc && !wc.isDestroyed()) wc.focus();
+    // A new document/point may share coordinates with the old one; never suppress its first move.
+    lastHoverPoint = { x: null, y: null };
     // The hover cursor and the focus ring are the same pointer now: put the real mouse position on
     // whatever the page controller last highlighted, rather than starting a second cursor.
     pageAction('refresh').then(hoverFromResult);
@@ -2547,8 +2549,20 @@ function pageHoverAt(x, y) {
   wc.sendInputEvent({ type: 'mouseMove', x: Math.round(x * zoom), y: Math.round(y * zoom) });
 }
 
+let lastHoverPoint = { x: null, y: null };
 function hoverFromResult(res) {
-  if (res && typeof res.x === 'number' && typeof res.y === 'number') pageHoverAt(res.x, res.y);
+  if (!res || typeof res.x !== 'number' || typeof res.y !== 'number') return;
+  // Re-sending the same point every second would keep a player's auto-hiding controls on screen.
+  // Only move the pointer when the ring actually changed position.
+  if (
+    lastHoverPoint.x !== null &&
+    Math.abs(res.x - lastHoverPoint.x) < 2 &&
+    Math.abs(res.y - lastHoverPoint.y) < 2
+  ) {
+    return;
+  }
+  lastHoverPoint = { x: res.x, y: res.y };
+  pageHoverAt(res.x, res.y);
 }
 
 // A move may smooth-scroll the page, which shifts the highlighted element after place() has already
@@ -2715,6 +2729,7 @@ function onControllerAxis(axis, value) {
 
 function startAxisTicker() {
   clearInterval(axisTimer);
+  let hoverTick = 0;
   axisTimer = setInterval(() => {
     if (controllerTarget !== 'page') {
       axisScrubAccum = 0;
@@ -2726,19 +2741,26 @@ function startAxisTicker() {
       // The ring follows the page as it scrolls; bring the pointer along once the scroll stops.
       hoverSyncSoon();
     }
-    // The right stick scrubs the video. Accumulate a fraction each tick and ask for whole-second
-    // seeks as they build up: at full deflection that is about five seconds of film per second of
-    // holding the stick, and less when it is only part-way over.
+    // The right stick scrubs the video in ten-second steps, like the triggers. At full deflection
+    // that is about one step every 0.6 s; easing off the stick makes them further apart. A quick
+    // flick that never reaches a full step is paid out when the stick returns to centre.
     if (Math.abs(rightX) > 0.3) {
-      axisScrubAccum += rightX * 0.25;
-      const step = Math.trunc(axisScrubAccum);
-      if (step !== 0) {
+      axisScrubAccum += rightX * 0.8;
+      if (Math.abs(axisScrubAccum) >= 10) {
+        const step = axisScrubAccum > 0 ? 10 : -10;
         pageAction('seekBy', step);
         axisScrubAccum -= step;
       }
     } else {
+      if (Math.abs(axisScrubAccum) >= 1) {
+        pageAction('seekBy', Math.round(axisScrubAccum));
+      }
       axisScrubAccum = 0;
     }
+    // The page can move the ring itself — a title starting puts it on the player — so nudge the
+    // hover pointer back onto it now and then, not only when the d-pad moved it.
+    hoverTick = (hoverTick + 1) % 30;
+    if (hoverTick === 0) pageAction('refresh').then(hoverFromResult);
   }, 50);
   axisTimer.unref?.();
 }

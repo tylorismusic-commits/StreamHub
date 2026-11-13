@@ -856,6 +856,39 @@ function pageController() {
     return null;
   }
 
+  // When a title actually starts, put the ring on the player instead of leaving it on the
+  // thumbnail that launched it. Only a large, visible video counts: the small autoplay previews on
+  // a catalogue page must not steal the highlight. It also leaves a text field or the player's own
+  // controls alone if the user is already there.
+  function focusVideo(v) {
+    if (!v || !v.isConnected || v.tagName !== 'VIDEO') return false;
+    // Autoplay previews on catalogue pages are muted; a title the user actually started is not.
+    // That keeps the ring from hopping onto a billboard the moment a page loads.
+    if (v.muted || v.volume === 0) return false;
+    const r = v.getBoundingClientRect();
+    if (r.width < innerWidth * 0.5 && r.height < innerHeight * 0.5) return false;
+    if (!isVisible(v)) return false;
+    const ae = document.activeElement;
+    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return false;
+    if (current && (current === v || v.contains(current))) return false;
+    place(v);
+    return true;
+  }
+
+  // Media events do not bubble, but they still pass through the capture phase on the document.
+  document.addEventListener(
+    'play',
+    (e) => {
+      const v = e.target;
+      if (!v || v.tagName !== 'VIDEO') return;
+      // Let the player settle; YouTube swaps the element in as the watch page loads.
+      setTimeout(() => {
+        if (!v.paused) focusVideo(v);
+      }, 400);
+    },
+    true,
+  );
+
   window.__streamhubController = { move, activate, back, dismiss, media, seekBy, scroll, refresh, clearRing, setActive, focusedPoint };
   ensureRing();
 
