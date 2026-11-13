@@ -1,4 +1,4 @@
-# StreamHub
+# Stream Hub:HTPC
 
 One desktop app for the **official** streaming sites — Netflix, Prime Video, Disney+, Max,
 Hulu, YouTube, YouTube TV, Apple TV+, Paramount+, Peacock, Crunchyroll, Twitch, Tubi, your own
@@ -11,7 +11,7 @@ fork that bundles the licensed Widevine CDM (vanilla Electron cannot play these 
 
 ## Download
 
-Grab the latest `StreamHub.AppImage` from
+Grab the latest `StreamHub-HTPC.AppImage` from
 [Releases](https://github.com/pl0xuee/StreamHub/releases).
 
 It needs **FUSE 2** (`libfuse.so.2`), which many distros no longer ship by default:
@@ -22,7 +22,7 @@ It needs **FUSE 2** (`libfuse.so.2`), which many distros no longer ship by defau
 | Debian / Ubuntu | `sudo apt install libfuse2` |
 | Fedora | `sudo dnf install fuse` |
 
-Or skip FUSE entirely: `APPIMAGE_EXTRACT_AND_RUN=1 ./StreamHub.AppImage`.
+Or skip FUSE entirely: `APPIMAGE_EXTRACT_AND_RUN=1 ./StreamHub-HTPC.AppImage`.
 
 ## Know before you install
 
@@ -94,9 +94,9 @@ Or skip FUSE entirely: `APPIMAGE_EXTRACT_AND_RUN=1 ./StreamHub.AppImage`.
 restarts into it — no browser, no reinstall. The sidebar's gear shows a dot when one is
 waiting.
 
-The file is deliberately named `StreamHub.AppImage`, with no version in it, so updates
+The file is deliberately named `StreamHub-HTPC.AppImage`, with no version in it, so updates
 overwrite that one path and your desktop entry and dock icon keep working. Coming from an
-older `StreamHub-<version>.AppImage`, the update renames the file once and warns you first;
+older `Stream Hub:HTPC-<version>.AppImage`, the update renames the file once and warns you first;
 repoint your shortcuts that one time and updates stop disturbing them.
 
 Self-updating only works when running as the AppImage. Started any other way, the app sends
@@ -105,7 +105,7 @@ you to the download page instead.
 ## Jellyfin
 
 Jellyfin ships in the list like everything else, but it is the one service with no address to
-ship: the server is yours. Click it and StreamHub asks where that server is — the same address
+ship: the server is yours. Click it and Stream Hub:HTPC asks where that server is — the same address
 you would type into a browser, `http://192.168.1.10:8096` or `https://media.example.com/jellyfin`
 — checks something is actually answering there, and names the server it found before saving it.
 From then on it is an ordinary service: its own session, its own login, grid panes, media keys.
@@ -115,14 +115,14 @@ From then on it is an ordinary service: its own session, its own login, grid pan
 - If the check fails but you know the address is right, it offers to use it anyway.
 - Right-click Jellyfin in the sidebar → **Change server…** to point it somewhere else. The login
   is left alone, so pointing it back picks up where it left off.
-- **HTTPS with a self-signed certificate will not load.** Chromium refuses it and StreamHub does
+- **HTTPS with a self-signed certificate will not load.** Chromium refuses it and Stream Hub:HTPC does
   not override that. Use plain `http` on your own network, or give the server a real certificate.
 - No DRM is involved here — this is your own server, so quality is whatever it serves and the
   ~720p Widevine ceiling above does not apply.
 
 ### Playing through mpv
 
-Because the server is yours and no DRM stands in the way, StreamHub can hand the file to
+Because the server is yours and no DRM stands in the way, Stream Hub:HTPC can hand the file to
 [mpv](https://mpv.io) instead of playing it in the browser. MKV, H.265/HEVC, DTS and TrueHD
 audio, PGS and VOBSUB image subtitles and 10-bit video all direct-play that way. The browser
 player cannot decode any of them, so it makes the server transcode instead — burning CPU on the
@@ -140,7 +140,7 @@ cannot take) and reads well ahead of the picture, so a busy server or a Wi-Fi hi
 rather than seen. Settings → Playback → "Decode video on the graphics card" turns the GPU half off
 for mpv as well as for the browser.
 
-The controls are drawn by mpv rather than by StreamHub's glass chrome, and mpv's usual keys work
+The controls are drawn by mpv rather than by Stream Hub:HTPC's glass chrome, and mpv's usual keys work
 — space to pause, arrows to seek, `f` for fullscreen.
 
 **`Esc` takes you back to the library.** So does `q`, which is rebound here: in a standalone mpv
@@ -175,7 +175,7 @@ Honest caveats:
 - **On Wayland, mpv plays in a window of its own.** mpv can only be handed a window to draw into
   on X11 — it has no such support on Wayland — so on a Wayland session, where the app runs
   natively, the film opens in mpv's own window beside the app rather than inside it. To have it
-  embedded, start the app on X11 instead: `StreamHub.AppImage --ozone-platform=x11` (or
+  embedded, start the app on X11 instead: `StreamHub-HTPC.AppImage --ozone-platform=x11` (or
   `npm start -- --ozone-platform=x11`), and XWayland hosts it.
 
   That used to be the default, and it was given up on purpose: under XWayland, Netflix and the
@@ -195,7 +195,7 @@ default) does not: X programs get the monitor's real pixels and are expected to 
 themselves. Left alone, Chromium draws at 100%, and on a 4K monitor at 150% the whole app comes
 out at two-thirds size.
 
-So StreamHub asks Hyprland what each monitor is set to and draws itself accordingly, following
+So Stream Hub:HTPC asks Hyprland what each monitor is set to and draws itself accordingly, following
 the window as it moves between monitors of different scales. It is applied as page zoom rather
 than a device scale factor, which is what lets it change at runtime and differ per monitor —
 visually the two are the same thing.
@@ -273,7 +273,7 @@ login** — don't sync or commit that directory.
 ```bash
 npm install     # downloads the castLabs ECS binary (bundles Widevine)
 npm start
-npm run build   # -> dist/StreamHub.AppImage
+npm run build   # -> dist/StreamHub-HTPC.AppImage
 ```
 
 The built-in service list is `DEFAULT_SERVICES` in [`src/services.js`](src/services.js) — add

@@ -155,8 +155,8 @@ function jellyfinShellJs(options) {
   const opts = options || {};
   const cfg = JSON.stringify({
     deviceId: typeof opts.deviceId === 'string' && opts.deviceId ? opts.deviceId : null,
-    deviceName: opts.deviceName || 'StreamHub',
-    appName: opts.appName || 'StreamHub',
+    deviceName: opts.deviceName || 'Stream Hub:HTPC',
+    appName: opts.appName || 'Stream Hub:HTPC',
     appVersion: opts.appVersion || APP_VERSION,
     bridgeKey: BRIDGE_KEY,
     shellKey: SHELL_KEY,
@@ -197,7 +197,7 @@ function jellyfinShellJs(options) {
         return fn();
       } catch (err) {
         try {
-          console.warn('[StreamHub] jellyfin shell:', err);
+          console.warn('[Stream Hub:HTPC] jellyfin shell:', err);
         } catch (ignored) { /* console is not worth a second failure */ }
         return undefined;
       }
@@ -465,7 +465,7 @@ function jellyfinShellJs(options) {
 
     // Address, token and user id, read from the client the page is already signed in with. All
     // three come from ApiClient rather than being configured anywhere, so they follow the user
-    // switching server or account without StreamHub having to be told.
+    // switching server or account without Stream Hub:HTPC having to be told.
     function serverInfo() {
       const api = window.ApiClient;
       if (!api) return null;
@@ -514,7 +514,7 @@ function jellyfinShellJs(options) {
         try {
           result = arg === undefined ? bridge[name]() : bridge[name](arg);
         } catch (err) {
-          safely(() => console.warn('[StreamHub] jellyfin bridge ' + name + ':', err));
+          safely(() => console.warn('[Stream Hub:HTPC] jellyfin bridge ' + name + ':', err));
           resolve(undefined);
           return;
         }
@@ -810,7 +810,7 @@ function jellyfinShellJs(options) {
     //
     // The object jellyfin-web goes looking for. Members are individually optional — anything
     // absent falls back to the client's own browser behaviour — so this is deliberately only what
-    // StreamHub can actually honour.
+    // Stream Hub:HTPC can actually honour.
     const appHost = {
       // Identity, as the server's Dashboard will show it. Returned plainly rather than as a
       // promise because callers read the fields straight off it.
@@ -866,7 +866,7 @@ function jellyfinShellJs(options) {
           case 'targetblank':
           case 'filedownload':
             return true;
-          // The user's servers are their own business and StreamHub does not pin the view to
+          // The user's servers are their own business and Stream Hub:HTPC does not pin the view to
           // one, so let them switch.
           case 'multiserver':
           case 'displaylanguage':
@@ -876,7 +876,7 @@ function jellyfinShellJs(options) {
           case 'htmlaudioautoplay':
             return true;
           // Everything else — quitting the app, fullscreen, screensavers, subtitle appearance,
-          // physical volume, remote control. Some are StreamHub's own chrome to own rather than
+          // physical volume, remote control. Some are Stream Hub:HTPC's own chrome to own rather than
           // the page's; the rest are settings that would not reach mpv.
           default:
             return false;
@@ -925,7 +925,7 @@ function jellyfinShellJs(options) {
         nativeShell.openUrl(url, '_blank');
       },
 
-      // StreamHub's settings live in its own chrome, not in a dialog raised from inside a
+      // Stream Hub:HTPC's settings live in its own chrome, not in a dialog raised from inside a
       // service's page. Present but empty, because jellyfin-web offers a client-settings entry
       // whenever a NativeShell exists at all and a missing method there would throw at the click.
       openClientSettings: function () {},
@@ -969,7 +969,7 @@ function jellyfinShellJs(options) {
     // escaping into it could take the client down; a Jellyfin that plays in the browser is a far
     // better outcome than one that does not load.
     try {
-      console.warn('[StreamHub] jellyfin shell failed to install:', err);
+      console.warn('[Stream Hub:HTPC] jellyfin shell failed to install:', err);
     } catch (ignored) { /* nothing left to try */ }
     return 'failed';
   }

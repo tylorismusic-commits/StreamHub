@@ -9,7 +9,7 @@
 // and Chromium's are siblings there, and nothing orders siblings — measured, the page won about
 // three runs in four, at random. A child window is reliably above its parent's web content, so
 // giving mpv one removes the question entirely. The same measurements killed the original idea
-// of floating StreamHub's glass chrome over the video: no transparent Electron window can be
+// of floating Stream Hub:HTPC's glass chrome over the video: no transparent Electron window can be
 // got above mpv, by parenting, always-on-top or window type. mpv's own OSC can, because it is
 // drawn inside mpv's window, which is why the controls are its and not ours.
 //
@@ -31,7 +31,7 @@ const PAGE_TICK_MS = 1000;
 
 // What the host window is called, so it can be told apart from the app's own window — on Hyprland
 // both are class "streamhub" and belong to the same process. See undecorateHost().
-const HOST_TITLE = 'StreamHub Player';
+const HOST_TITLE = 'Stream Hub:HTPC Player';
 
 // The window properties Hyprland is asked to drop from the host, as [name, value].
 //
@@ -217,7 +217,7 @@ class Player extends EventEmitter {
   /**
    * mpv asked to go fullscreen — its button, or 'f'.
    *
-   * It cannot do this itself: the window it renders into belongs to StreamHub, and mpv has no say
+   * It cannot do this itself: the window it renders into belongs to Stream Hub:HTPC, and mpv has no say
    * over it. So the request is honoured by putting the *app's* window into fullscreen, which the
    * player's window then follows through the ordinary layout path. Without this the button and
    * the key both appear to do nothing at all.

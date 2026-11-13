@@ -1,6 +1,6 @@
-# mpv, bundled with StreamHub
+# mpv, bundled with Stream Hub:HTPC
 
-StreamHub is MIT. The `mpv` binary next to this file is not: mpv is free software licensed under
+Stream Hub:HTPC is MIT. The `mpv` binary next to this file is not: mpv is free software licensed under
 the **GNU General Public License, version 2 or (at your option) any later version**, with parts
 under the LGPL-2.1-or-later. Its full licence text is in `mpv-COPYING.txt` in this same
 directory. If that file is missing or says PLACEHOLDER, this build must not be distributed —
@@ -10,11 +10,11 @@ Copyright © 2000–present the mpv, MPlayer and mplayer2 projects and contribut
 
 ## Why an MIT app may carry a GPL player
 
-StreamHub does not link mpv, statically or dynamically. It starts mpv as a **separate process**
+Stream Hub:HTPC does not link mpv, statically or dynamically. It starts mpv as a **separate process**
 and talks to it over mpv's own JSON IPC socket, the same interface any other program may use
-(see `src/mpv.js` in the StreamHub source). The two programs are aggregated on one medium, not
-combined into one work, so mpv's licence applies to mpv and StreamHub's MIT licence applies to
-StreamHub. Nothing in this bundle relicenses either.
+(see `src/mpv.js` in the Stream Hub:HTPC source). The two programs are aggregated on one medium, not
+combined into one work, so mpv's licence applies to mpv and Stream Hub:HTPC's MIT licence applies to
+Stream Hub:HTPC. Nothing in this bundle relicenses either.
 
 This is also why the code is written the way it is. Using libmpv as a linked native addon would
 have been less code; it would also have made the combined binary GPL.
@@ -30,11 +30,11 @@ package it was taken from. Every released version has a matching tag in that rep
 distribution's source package (its PKGBUILD, patches and build flags) reproduces the specific
 binary, including any patches the distribution applied.
 
-**Written offer.** If you would rather have the source directly, StreamHub will provide the
+**Written offer.** If you would rather have the source directly, Stream Hub:HTPC will provide the
 complete corresponding source for the mpv binary in this bundle — including the scripts used to
 control compilation and installation — for a period of three years from the date you received
 this software, at no charge beyond the cost of transfer. Ask by opening an issue at
-https://github.com/pl0xuee/StreamHub.
+https://github.com/pl0xuee/Stream Hub:HTPC.
 
 ## The shared libraries in `lib/`
 

@@ -1,4 +1,4 @@
-/* StreamHub — "cinema glass".
+/* Stream Hub:HTPC — "cinema glass".
  *
  * The chrome is a pane of tinted glass laid over the picture: one cold material, lit with one cold
  * accent. Everything at rest is gunmetal; anything *lit* — a hovered control, keyboard focus, a
@@ -281,15 +281,17 @@ body.playing .brand-mark {
   color: color-mix(in srgb, var(--onair) 55%, #fff);
   filter: drop-shadow(0 0 7px color-mix(in srgb, var(--onair) 80%, transparent));
 }
-/* Marquee lettering, in two weights of light: STREAM in the type's own white, HUB in steel. */
+/* Marquee lettering, in two weights of light: STREAM HUB in the type's own white, :HTPC in steel.
+   The full name is longer than the old wordmark, so the tracking and size are a little tighter to
+   keep it on one line in the 220px sidebar. */
 .brand-text {
   flex: 1;
   min-width: 0;
   font-family: var(--font-display);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.12em;
   color: var(--text);
   white-space: nowrap;
   transition: opacity 0.45s ease;

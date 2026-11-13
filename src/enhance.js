@@ -1,4 +1,4 @@
-// Optional per-site enhancements: cosmetic changes StreamHub makes to a service's own page, on
+// Optional per-site enhancements: cosmetic changes Stream Hub:HTPC makes to a service's own page, on
 // top of loading that page otherwise untouched.
 //
 // Each one is switchable on its own, because they are layout tweaks aimed at a site we do not

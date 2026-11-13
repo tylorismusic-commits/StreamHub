@@ -8,13 +8,13 @@
 // Two deliberate choices, both load-bearing:
 //
 //   * A child process over a socket, not libmpv linked into a native addon. mpv is GPLv2+;
-//     spawning it is aggregation, and StreamHub's own code stays MIT. Linking it would make
+//     spawning it is aggregation, and Stream Hub:HTPC's own code stays MIT. Linking it would make
 //     the combined binary GPL. It also means no native module to compile per Electron ABI.
 //   * One process per viewing session, kept alive with --idle, rather than one per file.
 //     Respawning between episodes would tear the video window down and build it again, which
 //     the user sees as a flash of the page behind it.
 //
-// The window: mpv renders into StreamHub's own window by X11 reparenting (--wid). That is
+// The window: mpv renders into Stream Hub:HTPC's own window by X11 reparenting (--wid). That is
 // proven to work here, and it is also why the Jellyfin web view has to be *hidden* while mpv
 // is up rather than layered under it — an X11 child window always draws above its parent's
 // content. The controls are drawn by mpv itself, from src/mpv-osc.lua, for the same reason.
@@ -92,7 +92,7 @@ function resolveBinary() {
   return 'mpv';
 }
 
-// StreamHub's own on-screen controller, if it is there.
+// Stream Hub:HTPC's own on-screen controller, if it is there.
 //
 // mpv's built-in OSC cannot be recoloured — it exposes layout and transparency and nothing else —
 // so matching the app's chrome means replacing it with a script of our own. This finds that
@@ -139,7 +139,7 @@ function isAvailable() {
   });
 }
 
-// Clear up after a StreamHub that did not exit cleanly.
+// Clear up after a Stream Hub:HTPC that did not exit cleanly.
 //
 // mpv outlives us if the app is killed rather than closed — the 'closed' handler that would have
 // stopped it never runs — and an mpv whose --wid window has been destroyed sits there ignoring
@@ -252,11 +252,11 @@ class Mpv extends EventEmitter {
       `--input-ipc-server=${this.socketPath}`,
       // Never read the user's ~/.config/mpv. Their own config can set a video output, a
       // profile or a script that breaks playback in here, and they would reasonably blame
-      // StreamHub for it. This player is ours; theirs is untouched.
+      // Stream Hub:HTPC for it. This player is ours; theirs is untouched.
       '--no-config',
       // mpv draws its own controls and takes its own keys.
       //
-      // This is the opposite of what it looked like at first. The intent was for StreamHub to
+      // This is the opposite of what it looked like at first. The intent was for Stream Hub:HTPC to
       // draw the player UI in a transparent window over the video, and for mpv to render
       // nothing but frames. That is not possible here: an Electron window cannot be made to
       // composite above the window mpv is rendering into — tested against every combination of
@@ -304,7 +304,7 @@ class Mpv extends EventEmitter {
     } else {
       // mpv's OSC draws a title bar with minimise/maximise/close buttons whenever it believes it
       // owns a borderless window, which it does here because of --no-border above. Inside
-      // StreamHub's own window those control a window with no visible edges, and "close" would
+      // Stream Hub:HTPC's own window those control a window with no visible edges, and "close" would
       // close our host out from under the video.
       args.push('--osc', '--script-opts=osc-windowcontrols=no');
     }
@@ -368,7 +368,7 @@ class Mpv extends EventEmitter {
    * fullscreen if it is fullscreen, otherwise back to the library, with mpv left running and idle.
    */
   //
-  // And with StreamHub's own controls loaded, the keys that change subtitle timing and volume stay
+  // And with Stream Hub:HTPC's own controls loaded, the keys that change subtitle timing and volume stay
   // what they were but lose mpv's own top-left message: the controls answer them themselves (a
   // toast for the timing, the bar for the volume), and mpv's text landed on top of the film's
   // title card. With mpv's built-in controller as the fallback, its message is the only answer

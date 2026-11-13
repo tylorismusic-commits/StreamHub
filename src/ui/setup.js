@@ -52,7 +52,7 @@ async function save(url) {
   if (saved !== false) return;
   checking = false;
   connectEl.disabled = false;
-  setStatus('StreamHub could not use that address. Check it and try again.', 'bad');
+  setStatus('Stream Hub:HTPC could not use that address. Check it and try again.', 'bad');
   inputEl.focus();
 }
 

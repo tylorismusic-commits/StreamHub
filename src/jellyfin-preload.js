@@ -7,7 +7,7 @@
 // installed when the page really is the server the user configured, checked here against the
 // origin handed over on the command line, and checked again in main on every call.
 //
-// What it enables: jellyfin-web asks StreamHub to play through mpv instead of a <video>. The
+// What it enables: jellyfin-web asks Stream Hub:HTPC to play through mpv instead of a <video>. The
 // contract it implements is jellyfin-web's own `NativeShell`, injected from here rather than on
 // dom-ready because the page reads that object while it boots — arriving late means the page has
 // already decided it is an ordinary browser.

@@ -10,7 +10,7 @@
 # To build a bundled AppImage:
 #
 #     npm run stage:mpv    # fills build/mpv-staging/ from the system mpv
-#     npm run build        # -> dist/StreamHub.AppImage, now with mpv inside
+#     npm run build        # -> dist/Stream Hub:HTPC.AppImage, now with mpv inside
 #
 # To build the way the project always has, shipping no mpv and using the user's own:
 #
@@ -22,7 +22,7 @@
 #     this host's glibc, and glibc is forward- but not backward-compatible, so an AppImage staged
 #     on a rolling distro will not start on an older LTS. Stage on the oldest system you intend
 #     to support.
-#   * It is GPL software travelling with an MIT app. That is legal — StreamHub spawns mpv as a
+#   * It is GPL software travelling with an MIT app. That is legal — Stream Hub:HTPC spawns mpv as a
 #     separate process rather than linking it — but only if the licence and an offer of source
 #     travel with it, which is what the notice copied in below is for. Do not delete it.
 #
@@ -225,7 +225,7 @@ fi
 
 total=$(du -sh "$staging" | cut -f1)
 echo "stage-mpv: staged $staged libraries, left $skipped to the host"
-echo "stage-mpv:   $staging/mpv           wrapper (this is what StreamHub spawns)"
+echo "stage-mpv:   $staging/mpv           wrapper (this is what Stream Hub:HTPC spawns)"
 echo "stage-mpv:   $staging/mpv.bin       the binary"
 echo "stage-mpv:   $staging/lib/          $staged shared libraries"
 if [ -n "$license_copied" ]; then

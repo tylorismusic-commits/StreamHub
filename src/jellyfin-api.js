@@ -1,6 +1,6 @@
 // The slice of Jellyfin's HTTP API that playing a file through mpv needs, and nothing else.
 //
-// StreamHub is not a Jellyfin client: jellyfin-web is, and it stays the thing that browses the
+// Stream Hub:HTPC is not a Jellyfin client: jellyfin-web is, and it stays the thing that browses the
 // library, remembers where you were and knows what a season is. This module exists because the
 // moment playback leaves the browser for mpv, three jobs stop being the web client's and become
 // ours — asking the server which stream to open, opening it, and telling the server what is
@@ -81,9 +81,9 @@ class JellyfinApi {
   // it is needed for PlaybackInfo (the answer depends on who is asking — transcode limits and
   // parental ratings are per user) and for marking an item played.
   constructor(options = {}) {
-    this.client = options.client || 'StreamHub';
+    this.client = options.client || 'Stream Hub:HTPC';
     this.version = options.version || APP_VERSION;
-    this.deviceName = options.deviceName || 'StreamHub';
+    this.deviceName = options.deviceName || 'Stream Hub:HTPC';
     this.deviceId = options.deviceId || '';
     this.update(options);
   }

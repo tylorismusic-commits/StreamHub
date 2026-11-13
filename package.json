@@ -3,7 +3,7 @@
   "version": "0.6.8",
   "description": "A desktop wrapper that hosts the official streaming websites (Netflix, Prime Video, Disney+, Max, Hulu, YouTube) behind one unified UI. Playback stays on each service's own site using its own DRM.",
   "main": "src/main.js",
-  "author": "StreamHub",
+  "author": "Stream Hub:HTPC",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -25,7 +25,7 @@
   },
   "build": {
     "appId": "com.streamhub.app",
-    "productName": "StreamHub",
+    "productName": "Stream Hub:HTPC",
     "electronDist": "node_modules/electron/dist",
     "electronVersion": "43.7.7",
     "files": [
@@ -49,12 +49,13 @@
       ],
       "category": "AudioVideo",
       "icon": "assets/icon.png",
+      "executableName": "streamhub",
       "executableArgs": [
         "--no-sandbox"
       ]
     },
     "appImage": {
-      "artifactName": "${productName}.AppImage"
+      "artifactName": "StreamHub-HTPC.AppImage"
     },
     "win": {
       "target": [

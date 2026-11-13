@@ -7,7 +7,7 @@
 // Electron session. The filter set is the prebuilt "ads + tracking" engine (EasyList,
 // EasyPrivacy, Peter Lowe, uBO's own lists and resources).
 //
-// Blocking is off by default and per-session: StreamHub gives every service its own
+// Blocking is off by default and per-session: Stream Hub:HTPC gives every service its own
 // partition, so the engine has to be attached to each one individually.
 const fs = require('fs/promises');
 const path = require('path');

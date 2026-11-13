@@ -36,7 +36,12 @@ const { JellyfinApi } = require('./jellyfin-api');
 const displayScale = require('./display-scale');
 const icons = require('./icons');
 
-// StreamHub runs natively on Wayland wherever there is a Wayland session — Electron's own choice
+// The app presents as "Stream Hub:HTPC" now, but its profile — settings, service list, and the
+// per-service cookies — lives in ~/.config/streamhub. Pin that path before anything reads it so a
+// packaging-name change can never orphan the logins that are already there.
+app.setPath('userData', path.join(app.getPath('appData'), 'streamhub'));
+
+// Stream Hub:HTPC runs natively on Wayland wherever there is a Wayland session — Electron's own choice
 // when no --ozone-platform is given — and on X11 everywhere else.
 //
 // It used to move itself onto X11 on every Wayland session, so that Jellyfin's mpv could draw
@@ -120,7 +125,7 @@ if (process.platform === 'linux' && gotInstanceLock && config.settings.hwDecode 
 //
 // This build of Chromium now serves MPRIS on Linux by itself — an org.mpris.MediaPlayer2.chromium.*
 // player appears on the bus as soon as a page plays audible media — and grabs the media keys for
-// the page in front. StreamHub has always served its own (mpris.js, shortcuts.js), because only the
+// the page in front. Stream Hub:HTPC has always served its own (mpris.js, shortcuts.js), because only the
 // app knows about mpv, the grid and which service is showing. With both, the desktop sees two
 // players for one film and a play/pause can reach both: one toggle each, and the video stops and
 // starts again on its own. Electron's guidance for an app that handles media keys itself is to turn
@@ -373,7 +378,7 @@ async function onPlaybackChange(playing) {
   if (!mpris) return;
 
   const service = config.services.find((s) => s.id === activeServiceId);
-  let title = service ? service.name : 'StreamHub';
+  let title = service ? service.name : 'Stream Hub:HTPC';
   const wc = viewManager.getActiveWebContents();
   if (wc && !wc.isDestroyed()) {
     // Strip the site's own suffix ("… - YouTube") so the panel does not say it twice.
@@ -808,7 +813,7 @@ function createWindow() {
     minWidth: 940,
     minHeight: 600,
     backgroundColor: '#0d1015',
-    title: 'StreamHub',
+    title: 'Stream Hub:HTPC',
     autoHideMenuBar: true,
     icon: path.join(__dirname, '..', 'assets', 'icon.png'),
   });
@@ -1166,10 +1171,10 @@ function buildTray() {
   if (tray) return;
   const icon = nativeImage.createFromPath(path.join(__dirname, '..', 'assets', 'icon.png'));
   tray = new Tray(icon.resize({ width: 22, height: 22 }));
-  tray.setToolTip('StreamHub');
+  tray.setToolTip('Stream Hub:HTPC');
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: 'Show StreamHub', click: showWindow },
+      { label: 'Show Stream Hub:HTPC', click: showWindow },
       { type: 'separator' },
       {
         label: 'Quit',
@@ -1463,7 +1468,7 @@ ipcMain.handle('jellyfin-player', async (event, method, payload) => {
         // what pointing the page at a second server looked like: every play hung, silently.
         const expected = jellyfinOrigin();
         const refuse = () => {
-          sendToJellyfin({ type: 'error', message: 'StreamHub only plays from the server it is set up for' });
+          sendToJellyfin({ type: 'error', message: 'Stream Hub:HTPC only plays from the server it is set up for' });
           return false;
         };
         let target = null;
@@ -2097,7 +2102,7 @@ function openDownloadPage(url) {
 // fallback path, where we only need a version number and a page to send the user to.
 async function fetchLatestRelease() {
   const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
-    headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'StreamHub' },
+    headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Stream Hub:HTPC' },
   });
   if (!res.ok) throw new Error(`GitHub returned ${res.status}`);
   const data = await res.json();
@@ -2108,7 +2113,7 @@ async function fetchLatestRelease() {
 // the SAME path — so desktop entries, docks and pinned icons keep working — only when the
 // current filename carries no version number; otherwise it names the new file after the new
 // version, and every launcher the user set up points at a file that no longer exists. We
-// ship "StreamHub.AppImage" (see build.artifactName) precisely to take the in-place branch.
+// ship "StreamHub-HTPC.AppImage" (see build.artifactName) precisely to take the in-place branch.
 //
 // The one exception is a build still running under an older, versioned name: that update has
 // to rename the file once. Detect it so we can say so up front rather than silently breaking
@@ -2223,7 +2228,7 @@ async function downloadAndInstall(info) {
   if (process.platform === 'win32') {
     const r = await dialog.showMessageBox(uiParent(), {
       type: 'info',
-      message: `StreamHub v${info.version} is ready`,
+      message: `Stream Hub:HTPC v${info.version} is ready`,
       detail: 'Restart now to finish updating?',
       buttons: ['Restart now', 'Later'],
       defaultId: 0,
@@ -2240,10 +2245,10 @@ async function downloadAndInstall(info) {
   const renamed = appImageWillBeRenamed();
   const r = await dialog.showMessageBox(uiParent(), {
     type: 'info',
-    message: `StreamHub v${info.version} is ready`,
+    message: `Stream Hub:HTPC v${info.version} is ready`,
     detail: renamed
       ? 'Restart now to finish updating?\n\nThis update also drops the version number from ' +
-        `the AppImage's filename (it becomes "StreamHub.AppImage"), so shortcuts and pinned ` +
+        `the AppImage's filename (it becomes "StreamHub-HTPC.AppImage"), so shortcuts and pinned ` +
         'icons will need pointing at it one last time. From then on the file keeps its name ' +
         'and path, and updates will no longer break them.'
       : 'Restart now to finish updating?',
@@ -2290,7 +2295,7 @@ ipcMain.handle('check-for-updates', async () => {
           type: 'info',
           message: `Update available: v${latest.version}`,
           detail:
-            `You're on v${current}. This copy of StreamHub can't update itself, so the new ` +
+            `You're on v${current}. This copy of Stream Hub:HTPC can't update itself, so the new ` +
             'build has to be downloaded manually.\n\nOpen the download page?',
           buttons: ['Download', 'Later'],
           defaultId: 0,
@@ -2302,7 +2307,7 @@ ipcMain.handle('check-for-updates', async () => {
       dialog.showMessageBox(uiParent(), {
         type: 'info',
         message: "You're up to date",
-        detail: `StreamHub v${current} is the latest version.`,
+        detail: `Stream Hub:HTPC v${current} is the latest version.`,
       });
       return { hasUpdate: false, latest: latest.version, current };
     }
@@ -2316,7 +2321,7 @@ ipcMain.handle('check-for-updates', async () => {
       dialog.showMessageBox(uiParent(), {
         type: 'info',
         message: "You're up to date",
-        detail: `StreamHub v${current} is the latest version.`,
+        detail: `Stream Hub:HTPC v${current} is the latest version.`,
       });
       return { hasUpdate: false, latest, current };
     }
@@ -2653,21 +2658,12 @@ function controllerGlobal(button) {
     chromeSend('open-palette');
     return true;
   }
-  if (button === BTN.GUIDE) {
+  if (button === BTN.BACK) {
+    // Select toggles fullscreen. The Home/Guide button is left alone: Steam intercepts it to open
+    // its own overlay before the app ever sees it, which is why this moved here.
     if (baseWindow && !baseWindow.isDestroyed()) {
       baseWindow.setFullScreen(!baseWindow.isFullScreen());
     }
-    return true;
-  }
-  if (button === BTN.BACK) {
-    // The chrome owns Back while it has the pad: a settings sheet, the quick switch, a service
-    // menu, then the sidebar itself, are all things Back should close before it means "go back in
-    // the site". The page target still goes straight to history.
-    if (controllerTarget === 'chrome' || controllerTarget === 'keyboard') {
-      chromeSend('gamepad-input', BTN.BACK, true);
-      return true;
-    }
-    if (viewManager) viewManager.goBack();
     return true;
   }
   return false;

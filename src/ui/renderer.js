@@ -906,14 +906,14 @@ function renderAdblock(ab) {
 let updateBusy = false;
 
 function renderUpdate() {
-  updateTitleEl.textContent = state.version ? `StreamHub v${state.version}` : 'StreamHub';
+  updateTitleEl.textContent = state.version ? `Stream Hub:HTPC v${state.version}` : 'Stream Hub:HTPC';
   if (updateBusy) return;
   const version = state.updateAvailable;
   updateBtn.textContent = version ? `Update to v${version}` : 'Check for updates';
-  updateBtn.title = version ? `Install StreamHub v${version}` : 'Check for updates';
+  updateBtn.title = version ? `Install Stream Hub:HTPC v${version}` : 'Check for updates';
   updateBtn.classList.toggle('has-update', Boolean(version));
   updateSubEl.textContent = version
-    ? `v${version} is available. Installing restarts StreamHub.`
+    ? `v${version} is available. Installing restarts Stream Hub:HTPC.`
     : 'Checking is manual — nothing is downloaded until you say so.';
 }
 
@@ -1148,11 +1148,11 @@ async function init() {
   // tick was just made, rather than leaving it looking like it did nothing.
   hwDecodeEl.addEventListener('change', async () => {
     await window.shell.setHwDecode(hwDecodeEl.checked);
-    hwDecodeSubEl.textContent = 'Restart StreamHub for this to take effect';
+    hwDecodeSubEl.textContent = 'Restart Stream Hub:HTPC for this to take effect';
   });
   smoothEl.addEventListener('change', async () => {
     await window.shell.setSmoothPlayback(smoothEl.checked);
-    smoothSubEl.textContent = 'Restart StreamHub for this to take effect';
+    smoothSubEl.textContent = 'Restart Stream Hub:HTPC for this to take effect';
   });
 
   // Downloading the new build takes a while (the AppImage is ~130MB), so report progress on the

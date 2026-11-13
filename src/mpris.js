@@ -20,7 +20,7 @@ const v = (signature, value) => [signature, value];
 
 // dbus-native answers a property read by looking the name up in the interface description
 // and on the implementation object, and marshalling both — with no check that either exists.
-// Anything on the bus can therefore ask StreamHub for a property nobody declared and take the
+// Anything on the bus can therefore ask Stream Hub:HTPC for a property nobody declared and take the
 // main process down with "Serialisation of JS 'undefined' type is not supported by d-bus".
 // Declaring the whole spec (below) fixes every property a real client reads, but the failure
 // mode is too severe to leave standing on that alone: a panel widget must not be able to
@@ -83,7 +83,7 @@ class Mpris {
     this.controls = controls;
     this.bus = null;
     this.playing = false;
-    this.title = 'StreamHub';
+    this.title = 'Stream Hub:HTPC';
     this.service = '';
     // Whether the app has finished with this player, as opposed to it merely being off the bus for
     // a moment. Only stop() sets it, and it is what keeps the crash guard from resurrecting a
@@ -150,7 +150,7 @@ class Mpris {
         },
         CanRaise: true,
         CanQuit: true,
-        Identity: 'StreamHub',
+        Identity: 'Stream Hub:HTPC',
         DesktopEntry: 'streamhub',
         // We do not open files or URIs on request, and saying so keeps clients from asking.
         HasTrackList: false,
@@ -296,7 +296,7 @@ class Mpris {
   // this used to try, against a return value dbus-native never gives. Nothing was ever sent.
   update({ playing, title, service }) {
     if (playing !== undefined) this.playing = playing;
-    if (title !== undefined) this.title = title || 'StreamHub';
+    if (title !== undefined) this.title = title || 'Stream Hub:HTPC';
     if (service !== undefined) this.service = service || '';
     if (!this.bus) return;
     try {

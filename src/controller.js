@@ -1,6 +1,6 @@
 'use strict';
 
-// Controller support for StreamHub.
+// Controller support for Stream Hub:HTPC.
 //
 // Two halves live here:
 //
@@ -888,6 +888,73 @@ function pageController() {
     },
     true,
   );
+
+  // The pointer has no business sitting over a film. Sites are inconsistent about hiding it —
+  // Disney+ leaves it on screen — so own it here: hide while anything is playing, show it again
+  // when the mouse really moves, and let it fade back after a moment of stillness.
+  const CURSOR_STYLE_ID = '__streamhub_cursor_none';
+  const CURSOR_CLASS = '__streamhub_hide_cursor';
+  let cursorTimer = 0;
+  let cursorSuppressUntil = 0;
+  function ensureCursorStyle() {
+    if (document.getElementById(CURSOR_STYLE_ID)) return;
+    const style = document.createElement('style');
+    style.id = CURSOR_STYLE_ID;
+    style.textContent = `html.${CURSOR_CLASS}, html.${CURSOR_CLASS} * { cursor: none !important; }`;
+    document.documentElement.appendChild(style);
+  }
+  function anyVideoPlaying() {
+    for (const v of document.querySelectorAll('video')) {
+      if (!v.paused && !v.ended) return true;
+    }
+    return false;
+  }
+  function hideCursor() {
+    ensureCursorStyle();
+    document.documentElement.classList.add(CURSOR_CLASS);
+  }
+  function revealCursor() {
+    document.documentElement.classList.remove(CURSOR_CLASS);
+    clearTimeout(cursorTimer);
+    cursorTimer = setTimeout(() => {
+      if (anyVideoPlaying()) hideCursor();
+    }, 2200);
+  }
+  document.addEventListener(
+    'play',
+    () => {
+      cursorSuppressUntil = Date.now() + 1200; // the auto-focus hover is not a real mouse move
+      hideCursor();
+    },
+    true,
+  );
+  document.addEventListener(
+    'pause',
+    () => {
+      if (anyVideoPlaying()) return;
+      clearTimeout(cursorTimer);
+      document.documentElement.classList.remove(CURSOR_CLASS);
+    },
+    true,
+  );
+  document.addEventListener(
+    'ended',
+    () => {
+      if (anyVideoPlaying()) return;
+      clearTimeout(cursorTimer);
+      document.documentElement.classList.remove(CURSOR_CLASS);
+    },
+    true,
+  );
+  document.addEventListener(
+    'mousemove',
+    () => {
+      if (Date.now() < cursorSuppressUntil) return;
+      if (anyVideoPlaying()) revealCursor();
+    },
+    true,
+  );
+  if (anyVideoPlaying()) hideCursor();
 
   window.__streamhubController = { move, activate, back, dismiss, media, seekBy, scroll, refresh, clearRing, setActive, focusedPoint };
   ensureRing();

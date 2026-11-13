@@ -1,6 +1,6 @@
 // Per-monitor display scale, for the one desktop that cannot tell Chromium about it.
 //
-// StreamHub runs natively on Wayland unless it is asked for X11 (see the top of main.js), and on a
+// Stream Hub:HTPC runs natively on Wayland unless it is asked for X11 (see the top of main.js), and on a
 // Wayland session that request means running under XWayland. Natively, Chromium learns every
 // monitor's scale from the compositor and none of this applies. Under XWayland, on most
 // compositors, it is fine too: XWayland presents the screen in logical pixels
