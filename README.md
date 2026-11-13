@@ -9,10 +9,37 @@ extracted, or bypassed:** this is a purpose-built Chromium shell hosting the off
 players, built on [castLabs ECS](https://github.com/castlabs/electron-releases), an Electron
 fork that bundles the licensed Widevine CDM (vanilla Electron cannot play these sites).
 
+## What's different in this fork
+
+This is a couch-first fork of [pl0xuee/StreamHub](https://github.com/pl0xuee/StreamHub). The
+services, DRM and site integrations are unchanged; what follows is ours:
+
+- **Full controller support** — an 8BitDo/Xbox pad drives the sidebar and the page: d-pad
+  navigation with a visible focus ring, A select / B back, LB for the hidden sidebar, RB to switch
+  between sidebar and page, and an on-screen keyboard for search and sign-in.
+- **The highlight is the pointer** — the page's hover cursor follows the focused element, so hover
+  menus and tooltips open under the selection instead of being steered separately.
+- **Video controls on the pad** — Y play/pause, LT/RT rewind/forward 10 seconds, and the right
+  stick scrubs the playing video in ten-second steps. Netflix seeking goes through its own player
+  API, so it no longer tears the player down.
+- **Couch layout** — the sidebar stays completely hidden until LB opens it; a two-pane grid with
+  L3/R3 to switch panes and a blue frame on the active one; R3 in the sidebar closes a pane; the
+  toolbar can close background apps.
+- **Only the focused screen makes noise** — inactive services and the other grid pane are muted.
+- **The cursor hides during playback** — including on Disney+ — and comes back when the mouse moves.
+- **Settings work from the pad** — every control is reachable. The first launch shows a one-time
+  controls card, also available later under **Settings → Controls**.
+- **Self-update is disabled** — this fork must not replace itself with an upstream release.
+- **Named Stream Hub:HTPC** — the window and UI carry the new name; the profile still lives in
+  `~/.config/streamhub`, so existing logins and settings carry over.
+
+The upstream project and its documentation are at
+[pl0xuee/StreamHub](https://github.com/pl0xuee/StreamHub).
+
 ## Download
 
-Grab the latest `StreamHub-HTPC.AppImage` from
-[Releases](https://github.com/pl0xuee/StreamHub/releases).
+Current release: **v0.6.9**. Grab the latest `StreamHub-HTPC.AppImage` from
+[Releases](https://github.com/tylorismusic-commits/StreamHub/releases/latest).
 
 It needs **FUSE 2** (`libfuse.so.2`), which many distros no longer ship by default:
 

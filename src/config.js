@@ -36,6 +36,10 @@ function defaultSettings() {
     autoHideSidebar: true,
     // Per-site cosmetic tweaks, each switchable on its own — see enhance.js.
     enhance: defaultEnhance(),
+    // Whether the one-time controller card has been shown. False on a fresh install (and on an
+    // existing config from before this shipped), so the pad map appears once; Settings → Controls
+    // can bring it back afterwards.
+    controlsSeen: false,
     // How large to draw the app: 'auto' follows the monitor (see display-scale.js), or a fixed
     // factor the user picked.
     displayScale: 'auto',
@@ -74,6 +78,7 @@ function cleanSettings(raw) {
     displayScale: cleanDisplayScale(s.displayScale),
     hwDecode: s.hwDecode !== false,
     smoothPlayback: s.smoothPlayback !== false,
+    controlsSeen: s.controlsSeen === true,
   };
 }
 

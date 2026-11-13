@@ -43,6 +43,8 @@ contextBridge.exposeInMainWorld('shell', {
   setTray: (on) => ipcRenderer.invoke('set-tray', on),
   // Whether the sidebar slides out of the window while something is playing.
   setAutoHideSidebar: (on) => ipcRenderer.invoke('set-auto-hide-sidebar', on),
+  // The one-time controls card has been shown; never show it unprompted again.
+  markControlsSeen: () => ipcRenderer.send('mark-controls-seen'),
   // Whether the sidebar is tinted glass over the page, or docked opaque beside it.
   setGlassSidebar: (on) => ipcRenderer.invoke('set-glass-sidebar', on),
   setMpvPlayback: (on) => ipcRenderer.invoke('set-mpv-playback', on),

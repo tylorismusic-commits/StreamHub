@@ -1071,7 +1071,8 @@ body.grid-full .service {
 
 /* The settings window's update button, and the sidebar's gear that leads to it. */
 #btn-update,
-#btn-settings {
+#btn-settings,
+#btn-show-controls {
   position: relative; /* for the update pulse drawn over it, below */
   display: flex;
   align-items: center;
@@ -1092,13 +1093,15 @@ body.grid-full .service {
     transform var(--ease);
 }
 #btn-update:hover,
-#btn-settings:hover {
+#btn-settings:hover,
+#btn-show-controls:hover {
   color: var(--steel-hot);
   border-color: var(--steel-edge);
   background: var(--steel-wash);
 }
 #btn-update:active:not(:disabled),
-#btn-settings:active {
+#btn-settings:active,
+#btn-show-controls:active {
   transform: scale(0.96);
 }
 #btn-update:disabled {
@@ -2025,6 +2028,36 @@ kbd {
   justify-content: space-between;
   gap: 12px;
   cursor: default;
+}
+
+/* ---- The controls card ---- */
+.controls-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 4px 0 16px;
+}
+.control-row {
+  display: grid;
+  grid-template-columns: 108px 1fr;
+  align-items: center;
+  gap: 12px;
+  font-size: 12.5px;
+  color: var(--text);
+}
+.control-key {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--steel-edge);
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--steel-hot);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  white-space: nowrap;
 }
 .update-row:hover {
   background: var(--card);

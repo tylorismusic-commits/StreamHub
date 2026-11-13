@@ -709,6 +709,7 @@ const scrimEl = document.getElementById('scrim');
 const sheetEls = {
   settings: document.getElementById('sheet-settings'),
   removed: document.getElementById('sheet-removed'),
+  controls: document.getElementById('sheet-controls'),
 };
 
 function openSheet(name) {
@@ -1069,6 +1070,7 @@ async function init() {
 
   document.getElementById('btn-removed').addEventListener('click', () => openSheet('removed'));
   settingsBtn.addEventListener('click', () => openSheet('settings'));
+  document.getElementById('btn-show-controls').addEventListener('click', () => openSheet('controls'));
   scrimEl.addEventListener('click', () => {
     closePalette();
     closeSheet();
@@ -1215,6 +1217,14 @@ async function init() {
   // pointer already sitting on the sidebar when it appeared never sent an enter event, and it
   // would otherwise slide out from under someone who is reading it.
   sidebarEl.addEventListener('mousemove', holdPeek);
+
+  // First run — and the first run after this version, for a config that predates the flag — shows
+  // the pad map once. It is marked seen as soon as it is up, so later launches stay quiet; Settings
+  // → Controls brings it back for anyone who dismissed it without reading.
+  if (state.controlsSeen === false) {
+    openSheet('controls');
+    window.shell.markControlsSeen();
+  }
 
   window.shell.onState((next) => applyState(next));
 }

@@ -637,6 +637,8 @@ function statePayload() {
     // it would silently do nothing — the Jellyfin view falls back to the browser player.
     mpvAvailable: Player.available(),
     autoHideSidebar: config.settings.autoHideSidebar !== false,
+    // Whether the one-time controller card has been seen; the renderer shows it while false.
+    controlsSeen: config.settings.controlsSeen === true,
     // Only the opening value — after this it is pushed on the 'playback' channel above.
     playing: mediaPlaying,
     // Each service's own logo, where its site has been visited to learn one (icons.js).
@@ -1958,6 +1960,14 @@ ipcMain.handle('set-auto-hide-sidebar', (_e, on) => {
   persist();
   broadcast();
   return config.settings.autoHideSidebar;
+});
+
+// The one-time controls card has been shown. Persist it without a broadcast so the sheet it is
+// currently drawing does not get torn down and rebuilt under the focus ring.
+ipcMain.on('mark-controls-seen', () => {
+  if (config.settings.controlsSeen === true) return;
+  config.settings.controlsSeen = true;
+  persist();
 });
 
 // How large the app is drawn. Applied at once — it is zoom, not a device scale factor, so nothing

@@ -335,6 +335,19 @@
           </div>
         </section>
 
+        <section class="settings-section">
+          <h2>Controls</h2>
+          <div class="settings">
+            <div class="setting update-row">
+              <span class="setting-text">
+                <span class="setting-title">Controller controls</span>
+                <span class="setting-sub">The full pad map, including the buttons that are easy to forget.</span>
+              </span>
+              <button id="btn-show-controls" title="Show controls">Show controls</button>
+            </div>
+          </div>
+        </section>
+
         <section class="settings-section" hidden>
           <h2>Updates</h2>
           <div class="setting update-row">
@@ -359,6 +372,35 @@
         <p class="sheet-lede">Click one to add it back to your list.</p>
         <ul id="removed-list" class="services"></ul>
         <p id="removed-empty" class="empty" hidden>Nothing removed. Sites you delete show up here.</p>
+      </div>
+    </aside>
+
+    <aside id="sheet-controls" class="sheet" hidden aria-label="Controller controls">
+      <header class="sheet-head">
+        <h1>Controls</h1>
+        <button class="sheet-close" data-close-sheet title="Close (Esc)" aria-label="Close">
+          <svg class="ico" aria-hidden="true"><use href="#i-close" /></svg>
+        </button>
+      </header>
+      <div class="sheet-body">
+        <p class="sheet-lede">The whole app works from the pad. A selects, B goes back.</p>
+        <div class="controls-list">
+          <div class="control-row"><span class="control-key">A</span><span>Select / activate</span></div>
+          <div class="control-row"><span class="control-key">B</span><span>Back / close</span></div>
+          <div class="control-row"><span class="control-key">X</span><span>Skip an ad / dismiss a popup</span></div>
+          <div class="control-row"><span class="control-key">Y</span><span>Play / pause</span></div>
+          <div class="control-row"><span class="control-key">D-pad</span><span>Move the highlight</span></div>
+          <div class="control-row"><span class="control-key">Left stick</span><span>Scroll the page</span></div>
+          <div class="control-row"><span class="control-key">Right stick</span><span>Scrub the video — hold to go faster</span></div>
+          <div class="control-row"><span class="control-key">LT / RT</span><span>Rewind / forward 10 seconds</span></div>
+          <div class="control-row"><span class="control-key">LB</span><span>Open or close the sidebar</span></div>
+          <div class="control-row"><span class="control-key">RB</span><span>Switch between sidebar and page</span></div>
+          <div class="control-row"><span class="control-key">Start</span><span>Quick switch</span></div>
+          <div class="control-row"><span class="control-key">Select</span><span>Fullscreen</span></div>
+          <div class="control-row"><span class="control-key">L3 / R3</span><span>Previous / next pane in a two-pane grid</span></div>
+          <div class="control-row"><span class="control-key">R3 in sidebar</span><span>Close the active pane</span></div>
+        </div>
+        <p class="section-note">Reopen this any time from Settings → Controls.</p>
       </div>
     </aside>
 
