@@ -40,6 +40,9 @@ let stowed = false;
 // Starts held open: the app opens with the sidebar out and it leaves the first time the pointer
 // moves off it, so the gesture is learned by watching it happen once.
 let peeking = true;
+// The on-screen keyboard is drawn over the page. Declared here because chromeRegion() below has to
+// know about it, and it is defined before the keyboard section further down.
+let ckbOpen = false;
 
 // The grid panes showing this service, as {paneId, position} — position being the pane's 1-based
 // place in the whole grid, which is what the on-screen tiling order is. A service can hold more
@@ -537,15 +540,15 @@ function renderGridToggle() {
   gridBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
   gridBtn.title = on
     ? 'Grid view on — click a service to add a pane, a number to close one'
-    : 'Grid view — watch up to 4 at once';
+    : 'Grid view — watch two at once';
   document.body.classList.toggle('grid-mode', on);
-  // With four panes tiled there is nothing more to add, so the rows stop reading as add targets
+  // With both panes tiled there is nothing more to add, so the rows stop reading as add targets
   // and the hint says why — better than clicks that silently do nothing.
   const full = on && Boolean(state.gridFull);
   document.body.classList.toggle('grid-full', full);
   document.getElementById('grid-hint').textContent = full
-    ? 'All four panes are in use. Close one to add another.'
-    : 'Click a service to add a pane. Drag a tile to move it.';
+    ? 'Both panes are in use. Close one to add another.'
+    : 'Click a service to add a pane. Pad: L3/R3 switch pane, R3 closes one.';
 
   // Mark the arrangement in use. With a single pane there is nothing to arrange, so the choice is
   // disabled rather than hidden — it keeps the sidebar from reflowing as panes come and go.
@@ -576,34 +579,24 @@ function renderStow() {
   if (away !== stowed) {
     stowed = away;
     clearTimeout(peekTimer);
-    // Pinned open, nothing is peeking; newly stowed, the sidebar is left out for a few seconds
-    // first — long enough to be seen leaving, which is what teaches the gesture without a tooltip
-    // explaining it. Reaching for it in the meantime keeps it, as it would at any other time.
-    peeking = away;
+    // Hidden, not merely resting at the edge: the sidebar is out of the picture until the pad asks
+    // for it with LB. Nothing is left on screen to reach for, which is what "not in focus" means.
+    peeking = false;
     document.body.classList.toggle('peeking', peeking);
-    if (away) stowSoon(IDLE_STOW_MS);
   }
   document.body.classList.toggle('playing', playing);
   document.body.classList.toggle('stowed', stowed);
-  edgeStripEl.hidden = !stowed;
+  edgeStripEl.hidden = true;
   syncChromeRegion();
 }
 
 // How wide each region is, for comparing one against another. The real widths live in main.js;
 // these only have to sort. 'full' is whatever the window is, so it beats everything.
-const REGION_ORDER = { peek: 0, rail: 1, sidebar: 2, full: 3 };
+const REGION_ORDER = { hidden: -1, peek: 0, rail: 1, sidebar: 2, full: 3 };
 // Must match the sidebar's transform transition in styles.css.
 const SLIDE_MS = 220;
 // A small overshoot off the sidebar should not slam it shut.
 const LEAVE_GRACE_MS = 180;
-// How long the sidebar stays out when nobody is holding it there.
-//
-// Stowing used to depend on the pointer *leaving* the sidebar, which meant it only ever left after
-// it had been visited: on launch it slid out and stayed out over the page until you moved onto it
-// and off again, which is not a thing anyone thinks to do. Long enough to read the list and pick
-// something, short enough that a window you have gone quiet on ends up showing the picture.
-const IDLE_STOW_MS = 4000;
-
 // Declared here because chromeRegion() below has to know about them, and it is defined before
 // either has anything to say. See the sheet and palette sections further down.
 let openSheetName = null;
@@ -619,7 +612,10 @@ let peekTimer = null; // a pending un-peek, cancelled if the pointer comes back
 // stowed sidebar has to report the strip: reserving its full width for a sidebar that has left is
 // what leaves a bare band of window background down the side of the page.
 function sidebarRegion() {
-  if (stowed && !peeking) return 'peek';
+  // Fully out of the window when stowed — not even the narrow strip that used to be left behind.
+  // The pad opens it with LB; nothing is reserved for it while it is away, so the picture owns the
+  // whole screen. A pinned or collapsed sidebar still reports its real width.
+  if (stowed && !peeking) return 'hidden';
   return state.sidebarCollapsed ? 'rail' : 'sidebar';
 }
 
@@ -627,7 +623,7 @@ function sidebarRegion() {
 // page — a sheet, the palette, a right-click menu — needs the whole window; otherwise the chrome is
 // only as wide as the sidebar it is showing. See CHROME_REGIONS in main.js.
 function chromeRegion() {
-  if (openSheetName || paletteOpen || !menuEl.hidden) return 'full';
+  if (openSheetName || paletteOpen || ckbOpen || !menuEl.hidden) return 'full';
   return sidebarRegion();
 }
 
@@ -666,11 +662,21 @@ function holdPeek() {
   syncChromeRegion();
 }
 
+// Put the sidebar away again. The view shrinks only after the slide has finished, so the panel is
+// seen leaving rather than being clipped.
+function hidePeek() {
+  clearTimeout(peekTimer);
+  if (!peeking) return;
+  peeking = false;
+  document.body.classList.remove('peeking');
+  syncChromeRegion();
+}
+
 // Whether something is open over the page that the sidebar belongs with: a sheet, the quick
 // switch, a service's menu. While any of them is up the pointer is off the sidebar by design, and
 // the sidebar sliding away underneath would leave the panel that came from it hanging in space.
 function heldOpen() {
-  return Boolean(openSheetName || paletteOpen || !menuEl.hidden);
+  return Boolean(openSheetName || paletteOpen || ckbOpen || !menuEl.hidden);
 }
 
 // Let it go, after `delay`. Anything that holds the sidebar in — the pointer arriving, a sheet
@@ -715,6 +721,12 @@ function openSheet(name) {
   // The sheet is over the page, so the pointer is nowhere near the sidebar — without this the
   // sidebar would stow out from under the panel that was opened from it.
   holdPeek();
+  // Put the pad's ring on the sheet's first control, so opening it with the gear and then pressing
+  // the d-pad starts inside the sheet rather than on a row hidden behind it.
+  window.shell.focusChrome();
+  gpFocusEl = null;
+  const targets = gpTargets();
+  if (targets.length) gpSetFocus(targets[0]);
 }
 
 function closeSheet() {
@@ -724,6 +736,9 @@ function closeSheet() {
   if (!paletteOpen) scrimEl.hidden = true;
   syncChromeRegion();
   releasePeek();
+  // The sheet was using the pad. Hand it back to the page rather than leaving it pointed at a
+  // sidebar that is about to stow.
+  window.shell.focusPage();
 }
 
 // ---- Quick switch ----
@@ -1178,6 +1193,9 @@ async function init() {
   document
     .getElementById('btn-fullscreen')
     .addEventListener('click', () => window.shell.toggleFullscreen());
+  document
+    .getElementById('btn-close-bg')
+    .addEventListener('click', () => window.shell.closeBackgroundApps());
 
   // Playback rides its own channel rather than the state payload, so the sidebar can stow and
   // return without re-rendering the service list under an in-progress drag.
@@ -1222,5 +1240,391 @@ window.addEventListener(
   },
   { capture: true, passive: true },
 );
+
+// ---- Controller navigation ----
+//
+// The physical pad is read by the main process (see src/controller.js), which forwards button
+// edges here while the chrome has the controller. This half drives the sidebar, the quick switch
+// and the on-screen keyboard; RB hands the pad to the page, where an injected controller does the
+// same job for whatever site is showing.
+//
+// Standard W3C gamepad button numbers, which the kernel reader translates to.
+const STD_A = 0; // select / activate
+const STD_B = 1; // back / dismiss
+const STD_X = 2; // quick switch (and keyboard, while the palette is up)
+const STD_Y = 3; // play / pause
+const STD_LB = 4; // show / hide the sidebar
+const STD_RB = 5; // hand the pad to the page (and back)
+const STD_BACK = 8; // step back in history
+const STD_START = 9; // quick switch
+const STD_L3 = 10;
+const STD_R3 = 11; // close the focused pane in grid mode
+const STD_DPAD_UP = 12;
+const STD_DPAD_DOWN = 13;
+const STD_DPAD_LEFT = 14;
+const STD_DPAD_RIGHT = 15;
+
+// The chrome's focus ring. One element at a time, moved with the d-pad, clicked with A.
+let gpFocusEl = null;
+
+function gpTargets() {
+  const out = [];
+  // While a sheet is over the page, the pad belongs to it: the settings rows, the close button and
+  // any other buttons in it, in reading order. Otherwise the sheet was unreachable and the only
+  // thing the d-pad could find behind it was the update button.
+  if (openSheetName && sheetEls[openSheetName]) {
+    const sheet = sheetEls[openSheetName];
+    for (const el of sheet.querySelectorAll('label.setting, .sheet-close, button')) {
+      if (el.disabled) continue;
+      if (el.hidden || el.closest('[hidden]')) continue;
+      if (el.offsetParent === null) continue;
+      out.push(el);
+    }
+    return out;
+  }
+  for (const li of listEl.querySelectorAll('.service')) out.push(li);
+  for (const id of [
+    'btn-back',
+    'btn-reload',
+    'btn-grid',
+    'btn-fullscreen',
+    'btn-close-bg',
+    'btn-settings',
+    'btn-removed',
+    'btn-collapse',
+    'btn-update',
+  ]) {
+    const el = document.getElementById(id);
+    if (el && !el.hidden && el.offsetParent !== null) out.push(el);
+  }
+  if (!gridPanelEl.hidden) {
+    for (const btn of gridLayoutEl.querySelectorAll('button')) {
+      if (!btn.disabled && btn.offsetParent !== null) out.push(btn);
+    }
+    // The little × on each pane tile closes that pane. Reachable with the pad so panes can be
+    // closed from the couch, not only with a mouse.
+    for (const close of gridPreviewEl.querySelectorAll('.pane-close')) {
+      if (!close.hidden && close.offsetParent !== null) out.push(close);
+    }
+  }
+  return out;
+}
+
+function gpSetFocus(el) {
+  if (gpFocusEl && gpFocusEl !== el) gpFocusEl.classList.remove('gp-focus');
+  gpFocusEl = el || null;
+  if (!gpFocusEl) return;
+  gpFocusEl.classList.add('gp-focus');
+  try {
+    gpFocusEl.scrollIntoView({ block: 'nearest' });
+  } catch {
+    // older engines
+  }
+}
+
+function gpFocusMove(step) {
+  const targets = gpTargets();
+  if (!targets.length) return;
+  let i = gpFocusEl ? targets.indexOf(gpFocusEl) : -1;
+  if (i === -1) i = step > 0 ? 0 : targets.length - 1;
+  else i = (i + step + targets.length) % targets.length;
+  gpSetFocus(targets[i]);
+}
+
+function gpActivate() {
+  if (gpFocusEl && gpFocusEl.isConnected) {
+    // A settings row that holds a <select> is operated by cycling it: there is no way to drive a
+    // native dropdown from the pad, and this is the only control in the sheet that is not a
+    // checkbox or a button.
+    const select = gpFocusEl.querySelector && gpFocusEl.querySelector('select');
+    if (select && select.options.length && !select.disabled) {
+      select.selectedIndex = (select.selectedIndex + 1) % select.options.length;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      return;
+    }
+    gpFocusEl.click();
+    return;
+  }
+  const targets = gpTargets();
+  if (targets.length) gpSetFocus(targets[0]);
+}
+
+// ---- On-screen keyboard ----
+//
+// The pad cannot type, and search boxes and sign-in forms need text. The keyboard is drawn here in
+// the chrome; what it produces is either typed into the quick-switch field (palette mode) or handed
+// to the main process to insert into the focused field of the page (page mode).
+const ckbEl = document.getElementById('controller-keyboard');
+const ckbModeEl = document.getElementById('ckb-mode');
+const ckbPreviewEl = document.getElementById('ckb-preview');
+const ckbKeysEl = document.getElementById('ckb-keys');
+
+const CKB_LETTERS = [
+  ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
+  ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
+  ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
+  ['z', 'x', 'c', 'v', 'b', 'n', 'm', '.', '-'],
+  ['⇧', '?123', '␣', '⌫', '↵'],
+];
+const CKB_SYMBOLS = [
+  ['!', '@', '#', '$', '%', '^', '&', '*', '(', ')'],
+  ['[', ']', '{', '}', '<', '>', '/', '\\', '|', '~'],
+  ['+', '=', '_', ':', ';', '"', "'", '`', '?'],
+  [',', '.', '-', '€', '£', '¥', '•', '…', '—'],
+  ['⇧', 'abc', '␣', '⌫', '↵'],
+];
+
+let ckbMode = 'page'; // 'page' or 'palette'
+let ckbLayout = 0; // 0 letters, 1 symbols
+let ckbShift = false;
+let ckbRow = 0;
+let ckbCol = 0;
+let ckbBuffer = '';
+
+function ckbRows() {
+  return ckbLayout ? CKB_SYMBOLS : CKB_LETTERS;
+}
+
+function renderCkb() {
+  if (!ckbOpen) return;
+  const rows = ckbRows();
+  if (ckbRow >= rows.length) ckbRow = rows.length - 1;
+  if (ckbCol >= rows[ckbRow].length) ckbCol = rows[ckbRow].length - 1;
+  ckbKeysEl.replaceChildren();
+  rows.forEach((row, r) => {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'ckb-row';
+    row.forEach((key, c) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'ckb-key';
+      if (key === '␣') btn.classList.add('space');
+      if (key === '⌫' || key === '↵' || key === '⇧' || key === '?123' || key === 'abc') {
+        btn.classList.add('wide');
+      }
+      if (r === ckbRow && c === ckbCol) btn.classList.add('on');
+      let label = key;
+      if (ckbShift && /^[a-z]$/.test(key)) label = key.toUpperCase();
+      else if (ckbShift && /^[0-9]$/.test(key)) label = ')!@#$%^&*('[Number(key)];
+      btn.textContent = label;
+      btn.addEventListener('click', () => {
+        ckbRow = r;
+        ckbCol = c;
+        ckbPress();
+      });
+      rowEl.appendChild(btn);
+    });
+    ckbKeysEl.appendChild(rowEl);
+  });
+  ckbModeEl.textContent = ckbMode === 'palette' ? 'Quick switch' : 'Type';
+  ckbPreviewEl.textContent = ckbBuffer || '…';
+}
+
+function openCkb(mode) {
+  ckbOpen = true;
+  ckbMode = mode === 'palette' ? 'palette' : 'page';
+  ckbLayout = 0;
+  ckbShift = false;
+  ckbRow = 0;
+  ckbCol = 0;
+  ckbBuffer = ckbMode === 'palette' ? paletteInputEl.value : '';
+  ckbEl.hidden = false;
+  syncChromeRegion();
+  renderCkb();
+}
+
+function closeCkb() {
+  if (!ckbOpen) return;
+  ckbOpen = false;
+  ckbEl.hidden = true;
+  syncChromeRegion();
+  window.shell.controllerKeyboardClosed(ckbMode);
+}
+
+function ckbMove(dir) {
+  const rows = ckbRows();
+  if (dir === 'up') ckbRow = Math.max(0, ckbRow - 1);
+  else if (dir === 'down') ckbRow = Math.min(rows.length - 1, ckbRow + 1);
+  else if (dir === 'left') ckbCol = Math.max(0, ckbCol - 1);
+  else if (dir === 'right') ckbCol = Math.min(rows[ckbRow].length - 1, ckbCol + 1);
+  renderCkb();
+}
+
+function ckbType(ch, keyName) {
+  if (ckbMode === 'palette') {
+    if (keyName === 'Backspace') paletteInputEl.value = paletteInputEl.value.slice(0, -1);
+    else if (keyName === 'Enter') {
+      const matches = paletteMatches();
+      choosePalette(matches[paletteIndex]);
+      closeCkb();
+      return;
+    } else if (ch) paletteInputEl.value += ch;
+    paletteIndex = 0;
+    ckbBuffer = paletteInputEl.value;
+    renderPalette();
+    renderCkb();
+    return;
+  }
+  if (keyName) window.shell.sendGamepadKey(keyName);
+  else if (ch) window.shell.sendGamepadText(ch);
+  if (keyName === 'Backspace') ckbBuffer = ckbBuffer.slice(0, -1);
+  else if (!keyName && ch) ckbBuffer += ch;
+  if (keyName === 'Enter') {
+    // Submitting is the end of typing; put the pad back on the page rather than leaving the
+    // keyboard up over the result.
+    closeCkb();
+    return;
+  }
+  renderCkb();
+}
+
+function ckbPress() {
+  const key = ckbRows()[ckbRow][ckbCol];
+  if (key === '⇧') {
+    ckbShift = !ckbShift;
+    renderCkb();
+    return;
+  }
+  if (key === '?123') {
+    ckbLayout = 1;
+    ckbShift = false;
+    ckbRow = 0;
+    ckbCol = 0;
+    renderCkb();
+    return;
+  }
+  if (key === 'abc') {
+    ckbLayout = 0;
+    ckbShift = false;
+    ckbRow = 0;
+    ckbCol = 0;
+    renderCkb();
+    return;
+  }
+  if (key === '⌫') {
+    ckbType('', 'Backspace');
+    return;
+  }
+  if (key === '↵') {
+    ckbType('', 'Enter');
+    return;
+  }
+  if (key === '␣') {
+    ckbType(' ', null);
+    return;
+  }
+  let ch = key;
+  if (ckbShift && /^[a-z]$/.test(ch)) ch = ch.toUpperCase();
+  else if (ckbShift && /^[0-9]$/.test(ch)) ch = ')!@#$%^&*('[Number(ch)];
+  ckbType(ch, null);
+  if (ckbShift) {
+    ckbShift = false;
+    renderCkb();
+  }
+}
+
+// ---- Input dispatch ----
+
+function handlePalette(button) {
+  const matches = paletteMatches();
+  if (button === STD_DPAD_UP) {
+    paletteIndex = Math.max(0, paletteIndex - 1);
+    renderPalette();
+  } else if (button === STD_DPAD_DOWN) {
+    paletteIndex = Math.min(Math.max(0, matches.length - 1), paletteIndex + 1);
+    renderPalette();
+  } else if (button === STD_A) {
+    choosePalette(matches[paletteIndex]);
+  } else if (button === STD_B) {
+    closePalette();
+  } else if (button === STD_X) {
+    openCkb('palette');
+  }
+}
+
+function handleKeyboard(button) {
+  if (button === STD_DPAD_UP) ckbMove('up');
+  else if (button === STD_DPAD_DOWN) ckbMove('down');
+  else if (button === STD_DPAD_LEFT) ckbMove('left');
+  else if (button === STD_DPAD_RIGHT) ckbMove('right');
+  else if (button === STD_A) ckbPress();
+  else if (button === STD_B || button === STD_START || button === STD_BACK) closeCkb();
+}
+
+function handleChrome(button) {
+  if (button === STD_DPAD_UP || button === STD_DPAD_LEFT) gpFocusMove(-1);
+  else if (button === STD_DPAD_DOWN || button === STD_DPAD_RIGHT) gpFocusMove(1);
+  else if (button === STD_A) gpActivate();
+  else if (button === STD_B) {
+    // Back closes whatever is over the page first, then puts the sidebar away, and only then means
+    // "go back in the site" — so a controller never navigates the page out from under an open
+    // settings sheet.
+    if (openSheetName) closeSheet();
+    else if (paletteOpen) closePalette();
+    else if (!menuEl.hidden) closeServiceMenu();
+    else if (stowed && peeking) hidePeek();
+    else window.shell.back();
+  } else if (button === STD_X) openPalette();
+  else if (button === STD_Y) window.shell.togglePlayback();
+  else if (button === STD_R3) window.shell.closeActivePane();
+}
+
+function onControllerButton(button, pressed) {
+  if (!pressed) return;
+  // Any input means someone is reaching for the chrome; hold the sidebar out.
+  holdPeek();
+  if (ckbOpen) {
+    handleKeyboard(button);
+    return;
+  }
+  if (paletteOpen) {
+    handlePalette(button);
+    return;
+  }
+  handleChrome(button);
+}
+
+// The main process says where the pad is pointing. Moving it to the page takes the ring away and
+// lets the sidebar stow; moving it back brings the ring up on whatever was last focused. Being
+// pointed at the chrome is not the same as asking to see it — the sidebar is hidden until LB/RB or
+// the menu reveals it — so this prepares the ring but leaves the sidebar where it is.
+window.shell.onControllerFocus((target) => {
+  if (target === 'chrome') {
+    document.body.classList.add('controller-nav');
+    if (!gpFocusEl || !gpFocusEl.isConnected) {
+      const targets = gpTargets();
+      if (targets.length) gpSetFocus(targets[0]);
+    }
+  } else {
+    document.body.classList.remove('controller-nav');
+    if (gpFocusEl) {
+      gpFocusEl.classList.remove('gp-focus');
+      gpFocusEl = null;
+    }
+    if (target !== 'keyboard') {
+      if (ckbOpen) closeCkb();
+      stowSoon(0);
+    }
+  }
+});
+
+window.shell.onOpenControllerKeyboard((opts) => openCkb(opts.mode || 'page'));
+
+// LB. A stowed sidebar slides in or out; a pinned one collapses to the rail and back, the same as
+// the toolbar button, because it never leaves the window to begin with.
+window.shell.onControllerToggleSidebar(() => {
+  if (!stowed) {
+    window.shell.toggleSidebar();
+    return;
+  }
+  if (peeking) {
+    hidePeek();
+  } else {
+    holdPeek();
+  }
+});
+// RB, or the menu: bring the sidebar out without toggling it shut. LB is the toggle below.
+window.shell.onControllerShowSidebar(() => holdPeek());
+window.shell.onGamepadInput((button, pressed) => onControllerButton(button, pressed));
 
 init();

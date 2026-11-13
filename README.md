@@ -53,10 +53,11 @@ Or skip FUSE entirely: `APPIMAGE_EXTRACT_AND_RUN=1 ./StreamHub.AppImage`.
   Google/Apple") works. Right-click a service to sign out and wipe its data.
 - **System media controls (MPRIS)** — the KDE/GNOME panel and lock screen drive playback.
   Media keys work while the app is focused.
-- **Grid view** — tile up to four services at once, the same one more than once if you like
+- **Grid view** — tile two services at once, the same one more than once if you like
   (two streams side by side). The controls live in a small panel at the top of the window that
   stays out of the way until you reach for it: drag a tile to move a pane and it keeps playing
-  where it lands. Choose packed, stacked or side-by-side.
+  where it lands. Choose packed, stacked or side-by-side. With a controller, L3/R3 move between
+  panes (the active one wears a blue frame) and R3 in the sidebar closes it.
 - **Full-window theater mode on YouTube** — the player takes the window to itself with the video
   centred in it, and the top bar hides until you reach for it. Scroll down as usual for the
   description and comments. On by default; the switch is in Settings.

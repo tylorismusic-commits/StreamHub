@@ -2065,3 +2065,112 @@ kbd {
   text-align: center;
   margin-top: 48px;
 }
+
+/* ---- Controller navigation ---- */
+/* The ring the pad moves around the chrome. A service row already draws its own hairline, so the
+   ring sits inside it as a brighter inset edge; buttons and other controls get an outline. Both
+   are drawn on the same steel the rest of the chrome uses, so it reads as one system. */
+.gp-focus {
+  outline: 2px solid var(--steel-hot);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--steel-wash), 0 0 16px -2px var(--steel-glow);
+}
+.service.gp-focus {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--steel-hot), 0 0 18px -2px var(--steel-glow);
+}
+.gp-focus .label,
+.gp-focus .btn-label {
+  color: var(--text);
+}
+
+/* ---- On-screen keyboard ---- */
+/* It covers the bottom of the window while it is up, over the page. The chrome view is grown to the
+   whole window for it (chromeRegion() returns 'full'), so it can sit anywhere. */
+.ckb {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--float) + 14px);
+  transform: translateX(-50%);
+  z-index: 60;
+  width: min(92vw, 760px);
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  background: var(--gun-raised);
+  border: 1px solid var(--edge-strong);
+  box-shadow: var(--lift-high);
+  backdrop-filter: blur(18px);
+}
+.ckb-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.ckb-mode {
+  flex-shrink: 0;
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--dim-2);
+}
+.ckb-preview {
+  flex: 1;
+  min-height: 1.7em;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ckb-hint {
+  flex-shrink: 0;
+  color: var(--dim-2);
+  font-size: 11.5px;
+}
+.ckb-keys {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ckb-row {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+.ckb-key {
+  min-width: 40px;
+  height: 42px;
+  padding: 0 9px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--edge);
+  background: var(--card);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  cursor: pointer;
+  transition: background var(--ease), box-shadow var(--ease), transform var(--ease);
+}
+.ckb-key:hover {
+  background: var(--card-hover);
+}
+.ckb-key:active {
+  transform: scale(0.96);
+}
+.ckb-key.wide {
+  min-width: 66px;
+}
+.ckb-key.space {
+  min-width: 200px;
+}
+.ckb-key.on {
+  outline: 2px solid var(--steel-hot);
+  outline-offset: 1px;
+  background: var(--steel-wash);
+  box-shadow: 0 0 14px -2px var(--steel-glow);
+}

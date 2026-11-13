@@ -405,7 +405,14 @@ class ViewManager {
     this.onFullscreenChange = () => {};
     this.onCommandPalette = () => {}; // Ctrl+K pressed inside a service view; main.js opens ours
     this.onVisibleChange = () => {}; // the set of views on screen changed; main.js places mpv
+    // Which pane the single-target controls act on changed. main.js draws the active-pane frame
+    // on the page, so views.js does not need to know anything about it beyond that it moved.
+    this.onActiveChange = () => {};
     this.onIcons = () => {}; // a service's page listed its icons; main.js keeps its logo
+    // A document finished loading in a view; main.js injects the controller (spatial navigation,
+    // focus ring, media control) into it here. A hook rather than an import, so views.js stays
+    // unaware of what the controller is.
+    this.onPageReady = () => {};
     // A hidden view main.js still needs, whatever the trim below thinks of it: the Jellyfin page
     // behind a paused mpv film, which is what that film reports its progress through.
     this.keepAlive = () => false;
@@ -696,6 +703,7 @@ class ViewManager {
         frame.executeJavaScript(SCROLLBAR_JS).catch(() => {});
       }
       this.applyEnhancements(view);
+      this.onPageReady(view);
     });
 
     // Chat panels and their kind are iframes that arrive after dom-ready and navigate on their
@@ -707,6 +715,9 @@ class ViewManager {
     });
 
     view.setVisible(false);
+    // Born silent. applyAudioFocus unmutes the one that actually goes on screen; until then a
+    // freshly created view must not play a startup jingle from behind the page.
+    if (!view.webContents.isDestroyed()) view.webContents.setAudioMuted(true);
     this.win.contentView.addChildView(view);
     // Give it the right size *before* it starts loading. A WebContentsView is born 0x0, and a
     // client that measures the window as it boots — jellyfin-web lays its whole grid out from
@@ -806,6 +817,55 @@ class ViewManager {
     // Raising a service view put it above the chrome; put the chrome back on top.
     this.onStackChange();
     this.onVisibleChange();
+    this.onActiveChange();
+    this.applyAudioFocus();
+  }
+
+  // Only what is on screen and has the controller may make noise. A backgrounded service or the
+  // other half of a two-pane grid is muted rather than paused: it keeps its position and buffer,
+  // but it cannot talk over the thing being watched. The active page's own mute (the pad's L3)
+  // is a property of the <video>, not of the view, so it survives this.
+  applyAudioFocus() {
+    const visible = this.visible || new Set();
+    const inGrid = this.grid.length > 1;
+    for (const view of this.views.values()) {
+      const wc = view.webContents;
+      if (!wc || wc.isDestroyed()) continue;
+      const audible = visible.has(view) && (!inGrid || view === this.active);
+      wc.setAudioMuted(!audible);
+      if (process.env.STREAMHUB_DEBUG_GAMEPAD === '1') {
+        console.log('[audio]', view.__viewKey, audible ? 'on' : 'muted');
+      }
+    }
+  }
+
+  // Move the single-target controls — the controller, media keys, Back — to another pane without
+  // reordering the tiles. Each pane keeps its own view and scroll position; only "whose input this
+  // is" changes. Returns false if the key is not one of the panes currently on screen.
+  setActiveKey(key) {
+    const view = this.views.get(key);
+    if (!view || !this.visible || !this.visible.has(view)) return false;
+    this.active = view;
+    if (view.webContents && !view.webContents.isDestroyed()) view.webContents.focus();
+    this.applyAudioFocus();
+    this.onActiveChange();
+    return true;
+  }
+
+  // Free every service view that is not on screen. Hidden views are kept for instant switching,
+  // but each one is a whole site still running; a couch session that visits a dozen services would
+  // otherwise accumulate them. The active/visible view and anything main.js still needs (the
+  // Jellyfin page behind a paused mpv film) are left alone.
+  closeBackgroundViews() {
+    const visible = this.visible || new Set();
+    let closed = 0;
+    for (const [key, view] of [...this.views]) {
+      if (visible.has(view) || view === this.active) continue;
+      if (this.keepAlive(view)) continue;
+      this.destroyByKey(key);
+      closed += 1;
+    }
+    return closed;
   }
 
   show(service) {

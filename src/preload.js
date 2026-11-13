@@ -56,6 +56,30 @@ contextBridge.exposeInMainWorld('shell', {
   // renderer could never have seen for itself, forwarded by the main process.
   onOpenSheet: (cb) => ipcRenderer.on('open-sheet', (_e, name) => cb(name)),
   onOpenPalette: (cb) => ipcRenderer.on('open-palette', () => cb()),
+  // ---- Controller ----
+  // A physical pad, read from the kernel joystick device in the main process. The chrome draws
+  // its focus ring and the on-screen keyboard from these.
+  onGamepadInput: (cb) => ipcRenderer.on('gamepad-input', (_e, button, pressed) => cb(button, pressed)),
+  // Where the pad is pointing: 'chrome' (sidebar, palette, keyboard) or 'page' (the service view).
+  onControllerFocus: (cb) => ipcRenderer.on('controller-focus', (_e, target) => cb(target)),
+  // RB (or the menu) asks for the sidebar to come out, without the toggle semantics of LB.
+  onControllerShowSidebar: (cb) => ipcRenderer.on('controller-show-sidebar', () => cb()),
+  // LB: open or close the sidebar. The renderer knows whether that means sliding a stowed sidebar
+  // in, or collapsing a pinned one to the rail.
+  onControllerToggleSidebar: (cb) => ipcRenderer.on('controller-toggle-sidebar', () => cb()),
+  // The page focused a text field; the chrome puts its keyboard up in front of it.
+  onOpenControllerKeyboard: (cb) =>
+    ipcRenderer.on('open-controller-keyboard', (_e, opts) => cb(opts || {})),
+  // Characters and special keys from that keyboard, inserted into the focused page field.
+  sendGamepadText: (text) => ipcRenderer.send('gamepad-text', text),
+  sendGamepadKey: (key) => ipcRenderer.send('gamepad-key', key),
+  controllerKeyboardClosed: (mode) => ipcRenderer.send('controller-keyboard-closed', mode),
+  focusPage: () => ipcRenderer.send('focus-page'),
+  focusChrome: () => ipcRenderer.send('focus-chrome'),
+  togglePlayback: () => ipcRenderer.send('toggle-playback'),
+  closeActivePane: () => ipcRenderer.send('close-active-pane'),
+  // Free every service that is not on screen, without touching the one being watched.
+  closeBackgroundApps: () => ipcRenderer.send('close-background-apps'),
   // Running count of blocked requests, pushed every couple of seconds while blocking is on.
   onAdblockStats: (cb) => ipcRenderer.on('adblock-stats', (_e, stats) => cb(stats)),
   // Download percentage while an update is being fetched; null when it finishes or fails.

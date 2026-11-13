@@ -133,6 +133,9 @@
           <button id="btn-fullscreen" title="Fullscreen (F11)" aria-label="Fullscreen">
             <svg class="ico" aria-hidden="true"><use href="#i-fullscreen" /></svg>
           </button>
+          <button id="btn-close-bg" title="Close background apps" aria-label="Close background apps">
+            <svg class="ico" aria-hidden="true"><use href="#i-close" /></svg>
+          </button>
         </div>
         <div class="app-meta">
           <span id="app-version">v—</span>
@@ -332,14 +335,14 @@
           </div>
         </section>
 
-        <section class="settings-section">
+        <section class="settings-section" hidden>
           <h2>Updates</h2>
           <div class="setting update-row">
             <span class="setting-text">
               <span class="setting-title" id="update-title">StreamHub</span>
-              <span class="setting-sub" id="update-sub">Checking is manual — nothing is downloaded until you say so.</span>
+              <span class="setting-sub" id="update-sub">Updates are disabled in this build.</span>
             </span>
-            <button id="btn-update" title="Check for updates">Check for updates</button>
+            <button id="btn-update" title="Check for updates" hidden>Check for updates</button>
           </div>
         </section>
       </div>
@@ -367,6 +370,18 @@
            server is. Hidden on everything else, whose address is not the user's to choose. -->
       <button id="menu-server" class="context-item" hidden>Change server…</button>
       <button id="menu-signout" class="context-item danger">Sign out / clear data</button>
+    </div>
+
+    <!-- On-screen keyboard for the controller. A pad cannot type, and streaming sites need text
+         for search and sign-in, so the chrome puts up its own keyboard and the main process inserts
+         what it produces into the focused field of the page. -->
+    <div id="controller-keyboard" class="ckb" hidden role="dialog" aria-label="On-screen keyboard">
+      <div class="ckb-head">
+        <span id="ckb-mode" class="ckb-mode">Type</span>
+        <span id="ckb-preview" class="ckb-preview">…</span>
+        <span class="ckb-hint">A type · B close · Start done</span>
+      </div>
+      <div id="ckb-keys" class="ckb-keys"></div>
     </div>
 
     <script src="renderer.js"></script>

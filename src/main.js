@@ -19,6 +19,8 @@ const {
 } = require('electron');
 
 const { autoUpdater } = require('electron-updater');
+const fs = require('fs');
+
 
 const configStore = require('./config');
 const { normalizeServerUrl } = require('./services');
@@ -28,6 +30,7 @@ const { cleanEnhance } = require('./enhance');
 const { Mpris } = require('./mpris');
 const { registerMediaKeys, unregisterMediaKeys } = require('./shortcuts');
 const { Player } = require('./player');
+const { GamepadReader, PAGE_CONTROLLER_SOURCE, BTN } = require('./controller');
 const { jellyfinShellJs } = require('./jellyfin-shell');
 const { JellyfinApi } = require('./jellyfin-api');
 const displayScale = require('./display-scale');
@@ -195,7 +198,7 @@ const SIDEBAR_RAIL_WIDTH = 56;
 // picture. The renderer asks for a region by name; this is the only place bounds are set.
 // `peek` must match --peek-width in styles.css: it is the same strip, described once as a reach
 // target and once as a slice of window taken away from the page.
-const CHROME_REGIONS = { peek: 24, rail: SIDEBAR_RAIL_WIDTH, sidebar: SIDEBAR_WIDTH, full: null };
+const CHROME_REGIONS = { hidden: 1, peek: 24, rail: SIDEBAR_RAIL_WIDTH, sidebar: SIDEBAR_WIDTH, full: null };
 let chromeRegion = 'sidebar';
 // How much of the window the sidebar itself is holding — the same measure without the overlays,
 // since a sheet drawn over the page does not push the page aside. Docked (glass off) this is what
@@ -243,7 +246,7 @@ let activeServiceId = null;
 let gridMode = false;
 let gridPanes = [];
 let gridLayout = 'auto'; // how those panes are arranged — see GRID_LAYOUTS in views.js
-const MAX_GRID_PANES = 4; // the most the tiling layout in views.js lays out
+const MAX_GRID_PANES = 2; // two side by side is the most a couch can actually watch at once
 
 // A fresh pane id for a service, unique within the grid. Ids are derived from the service rather
 // than a running counter so they stay meaningful in the saved config, and stable across restarts.
@@ -323,13 +326,22 @@ function mediaSeek(seconds) {
   }
   const wc = viewManager && viewManager.getActiveWebContents();
   if (!wc || wc.isDestroyed()) return;
-  // The playing video rather than merely the first: a page can hold a preview or an ad before it.
   const delta = Number(seconds) || 0;
-  wc.executeJavaScript(`(() => {
-    const vids = Array.from(document.querySelectorAll('video'));
-    const v = vids.find((x) => x.readyState > 2) || vids[0];
-    if (v) v.currentTime = Math.max(0, v.currentTime + (${delta}));
-  })()`).catch(() => {});
+  // Route through the injected controller so a Netflix title is seeked by its own player API
+  // (writing currentTime there stops playback). It falls back to the largest visible <video>.
+  wc.executeJavaScript(
+    `window.__streamhubController ? window.__streamhubController.seekBy(${delta}) : null`,
+  )
+    .then((res) => {
+      if (res) return;
+      // No controller (a document that never finished loading): the old element path.
+      wc.executeJavaScript(`(() => {
+        const vids = Array.from(document.querySelectorAll('video'));
+        const v = vids.find((x) => x.readyState > 2) || vids[0];
+        if (v) v.currentTime = Math.max(0, v.currentTime + (${delta}));
+      })()`).catch(() => {});
+    })
+    .catch(() => {});
 }
 
 // Hold the display awake while a service is playing. Watching a film is the one time a
@@ -713,6 +725,9 @@ function switchService(serviceId) {
   persist();
   viewManager.show(service);
   broadcast();
+  // Picking a service from the sidebar with the pad is the end of that gesture: hand the controller
+  // to the page and let the sidebar stow, rather than leaving the user on a menu they just used.
+  if (controllerTarget === 'chrome') setControllerTarget('page');
 }
 
 // The panes currently tiled in the grid, in order, resolved to their service objects and
@@ -837,6 +852,9 @@ function createWindow() {
 
   viewManager = new ViewManager(baseWindow, Math.round(SIDEBAR_WIDTH * uiZoom));
   viewManager.setZoom(uiZoom);
+  // Every service document gets the controller injected as it finishes loading, so a pad can
+  // navigate the page itself, not just the sidebar. See injectPageController in main.js.
+  viewManager.onPageReady = (view) => injectPageController(view);
   // Playing/stopping drives both the display-sleep inhibitor and the system media controls.
   // Two things can be playing now — a site's own <video>, and mpv — and they report separately,
   // so combine them rather than letting whichever spoke last win. Otherwise stopping a Jellyfin
@@ -993,6 +1011,9 @@ function createWindow() {
   };
   // A different set of views on screen: the Jellyfin view may just have left it, or come back.
   viewManager.onVisibleChange = () => syncPlayer();
+  // Which grid pane is focused: draw a frame around it on the page, so L3/R3 have something
+  // visible to move between. See applyActivePaneFrame.
+  viewManager.onActiveChange = () => applyActivePaneFrame();
   // A film paused because the user switched away still belongs to the Jellyfin page behind it —
   // that page is how its progress is reported and how it is resumed — so the page is not one of
   // the idle views the manager may release while there is a film in it.
@@ -1066,6 +1087,17 @@ function createWindow() {
   // The saved width is the restored-down size, so it is genuinely smaller than the screen.
   if (saved.maximized) {
     baseWindow.maximize();
+    layoutSettled();
+  }
+
+  // Launched from a couch — Steam, Big Picture, a media-centre front end — the app should own the
+  // screen from the first frame rather than opening windowed on a desktop nobody is looking at.
+  // `--fullscreen` (and the conventional `--start-fullscreen`) asks for that; it wins over the
+  // restored maximised state above, which is only a desktop convenience.
+  const wantFullscreen =
+    process.argv.includes('--fullscreen') || process.argv.includes('--start-fullscreen');
+  if (wantFullscreen) {
+    baseWindow.setFullScreen(true);
     layoutSettled();
   }
 
@@ -1167,6 +1199,8 @@ function applyTraySetting() {
 // service view both need a way to raise.
 function openSheet(name) {
   if (chromeView && !chromeView.webContents.isDestroyed()) {
+    // The pad must walk the sheet, not the sidebar behind it, from the moment it opens.
+    setControllerTarget('chrome');
     // Given the keyboard as well, so Escape closes the sheet rather than reaching the page under it.
     chromeView.webContents.focus();
     chromeView.webContents.send('open-sheet', name);
@@ -1184,6 +1218,21 @@ function buildAppMenu() {
           { role: 'togglefullscreen' },
           { role: 'reload' },
           { type: 'separator' },
+          {
+            // The controller reveals the sidebar with LB; this is the same gesture for a keyboard
+            // or a mouse, since a fully hidden sidebar leaves nothing on screen to hover.
+            label: 'Toggle Sidebar',
+            accelerator: 'CmdOrCtrl+B',
+            click: () => {
+              if (!chromeView || chromeView.webContents.isDestroyed()) return;
+              // Same target change the pad makes, so a keyboard user gets the same sidebar either
+              // way — and the toggle will reveal rather than hide the first time, because focus no
+              // longer implies "shown" by itself.
+              setControllerTarget('chrome');
+              chromeView.webContents.focus();
+              chromeView.webContents.send('controller-toggle-sidebar');
+            },
+          },
           {
             label: 'Settings',
             accelerator: 'CmdOrCtrl+,',
@@ -1216,10 +1265,18 @@ ipcMain.on('add-grid-pane', (_e, serviceId) => {
   // turned on by hand.
   if (!gridMode) setGridMode(true);
   if (gridPanes.length >= MAX_GRID_PANES) return;
-  gridPanes.push({ paneId: newPaneId(serviceId), serviceId });
+  const pane = { paneId: newPaneId(serviceId), serviceId };
+  gridPanes.push(pane);
   viewManager.showGrid(reconcileGrid());
   persist();
   broadcast();
+  // Adding a pane is asking to watch it: put the controller on the new tile (and stow the sidebar
+  // if the pad was driving it), so the next d-pad press acts on what was just opened.
+  if (viewManager.setActiveKey(pane.paneId)) {
+    activeServiceId = pane.serviceId;
+    if (controllerTarget === 'chrome') setControllerTarget('page');
+    broadcast();
+  }
 });
 
 // Close one pane, identified by pane id so that closing the first of two Twitch tiles leaves the
@@ -1943,6 +2000,71 @@ ipcMain.on('toggle-fullscreen', () => {
 ipcMain.on('reload-active', () => viewManager.reloadActive());
 ipcMain.on('go-back', () => viewManager.goBack());
 
+// ---- Controller input from the chrome renderer ----
+//
+// The renderer draws the sidebar, the quick switch and the on-screen keyboard. It tells the main
+// process where the pad should point, and hands over the characters typed on that keyboard so they
+// can be inserted into whichever page field has focus.
+ipcMain.on('focus-page', () => setControllerTarget('page'));
+ipcMain.on('focus-chrome', () => setControllerTarget('chrome'));
+ipcMain.on('toggle-playback', () => viewManager.playPause());
+
+// Close the pane the controller is currently on, in grid mode. The last pane is kept, as with the
+// sidebar's own close button — the grid toggle is how you leave the mode.
+ipcMain.on('close-active-pane', () => {
+  if (!gridMode || gridPanes.length <= 1) return;
+  const active = viewManager && viewManager.active;
+  const key = active && active.__viewKey;
+  const pane = key ? gridPanes.find((p) => p.paneId === key) : null;
+  if (!pane) return;
+  gridPanes = gridPanes.filter((p) => p !== pane);
+  viewManager.showGrid(reconcileGrid());
+  persist();
+  broadcast();
+});
+
+// Free the services that are not on screen. They stay in the sidebar — this closes the running
+// site, not the account — and open again from scratch the next time they are chosen.
+ipcMain.on('close-background-apps', () => {
+  if (viewManager) viewManager.closeBackgroundViews();
+  broadcast();
+});
+
+// Text from the on-screen keyboard goes into the focused field of the active page. insertText is
+// the right primitive: it respects the page's caret, IME and React-style controlled inputs, which
+// setting .value from outside would not.
+ipcMain.on('gamepad-text', (_e, text) => {
+  const wc = viewManager && viewManager.getActiveWebContents();
+  if (!wc || wc.isDestroyed()) return;
+  const str = String(text || '');
+  if (str) wc.insertText(str.slice(0, 64));
+});
+
+// The keys a keyboard has but a text string cannot express. Backspace and Enter are the two the
+// on-screen keyboard offers; both are sent as real key events so the page's own handlers see them.
+ipcMain.on('gamepad-key', (_e, key) => {
+  const wc = viewManager && viewManager.getActiveWebContents();
+  if (!wc || wc.isDestroyed()) return;
+  const name = String(key || '');
+  if (name === 'Backspace') {
+    wc.sendInputEvent({ type: 'keyDown', keyCode: 'Backspace' });
+    wc.sendInputEvent({ type: 'keyUp', keyCode: 'Backspace' });
+  } else if (name === 'Enter') {
+    wc.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' });
+    wc.sendInputEvent({ type: 'char', keyCode: '\r' });
+    wc.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' });
+  } else if (name === 'Tab') {
+    wc.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' });
+    wc.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' });
+  }
+});
+
+// The keyboard is gone; the pad is back on the page (or on the chrome, if it was typing into the
+// quick switch).
+ipcMain.on('controller-keyboard-closed', (_e, mode) =>
+  setControllerTarget(mode === 'palette' ? 'chrome' : 'page'),
+);
+
 // Numeric version compare: is `latest` newer than `current`? (e.g. "0.2.0" > "0.1.0")
 function isNewerVersion(latest, current) {
   const a = String(latest).split('.').map((n) => parseInt(n, 10) || 0);
@@ -2270,7 +2392,8 @@ app.whenReady().then(async () => {
   }
 
   buildAppMenu();
-  createWindow();
+    startGamepadReader();
+createWindow();
   // The view manager is built by createWindow, so its copy of the enhancement settings is seeded
   // here rather than at load. Injection happens per document load, which is still ahead.
   viewManager.setEnhance(cleanEnhance(config.settings.enhance));
@@ -2316,11 +2439,11 @@ app.whenReady().then(async () => {
     else gridMode = false;
   }
 
-  // Look for a new release in the background so the sidebar button can announce one instead
-  // of the user having to think to go and ask. Deferred a little: startup is already busy
-  // fetching Widevine, the filter engine and the first service, and nothing here is urgent.
-  setTimeout(pollForUpdate, 10000);
-  setInterval(pollForUpdate, UPDATE_POLL_MS);
+  // This is a fork: the background check would compare against the *upstream* app's releases, and
+  // installing one would replace this build and lose these changes. So the check is not run at all,
+  // and the Updates section is hidden in Settings. See the note there.
+  // setTimeout(pollForUpdate, 10000);
+  // setInterval(pollForUpdate, UPDATE_POLL_MS);
 });
 
 app.on('window-all-closed', () => {
@@ -2333,6 +2456,312 @@ app.on('window-all-closed', () => {
 // Any route to quitting (menu, Ctrl+Q, session logout) has to get past the close-to-tray
 // handler, which only stands aside once this is set.
 //
+// ---------------------------------------------------------------------------------------------
+// Controller input.
+//
+// A pad's job is split between two places. Buttons that mean something to the app itself (the
+// sidebar, the quick switch, back) are handled here. Everything else is forwarded to whichever
+// half has the controller: the chrome renderer (sidebar, palette, on-screen keyboard) or the
+// active service view (spatial navigation inside the page). RB hands control from one to the
+// other; a single d-pad cannot serve two focus systems at once without them fighting.
+let gamepadReader = null;
+let controllerTarget = 'chrome'; // 'chrome' | 'page' | 'keyboard'
+let controllerCursor = { x: 0, y: 0 };
+let axisTimer = null;
+const controllerAxes = { leftX: 0, leftY: 0, rightX: 0, rightY: 0 };
+
+function controllerWc() {
+  return viewManager ? viewManager.getActiveWebContents() : null;
+}
+
+function chromeSend(channel, ...args) {
+  if (chromeView && !chromeView.webContents.isDestroyed()) {
+    chromeView.webContents.send(channel, ...args);
+  }
+}
+
+function setControllerTarget(target) {
+  if (process.env.STREAMHUB_DEBUG_GAMEPAD === '1') console.log('[gamepad] target ->', target);
+  controllerTarget = target;
+  if (target === 'page') {
+    const wc = controllerWc();
+    if (wc && !wc.isDestroyed()) wc.focus();
+    // The right stick's virtual pointer starts in the middle of the page rather than at its
+    // top-left corner, so the first nudge moves it from where the eye already is.
+    const view = viewManager && viewManager.active;
+    if (view) {
+      const b = view.getBounds();
+      controllerCursor = { x: b.width / 2, y: b.height / 2 };
+    }
+  } else if (target === 'chrome') {
+    if (chromeView && !chromeView.webContents.isDestroyed()) chromeView.webContents.focus();
+  }
+  chromeSend('controller-focus', target);
+}
+
+function openControllerKeyboard(mode) {
+  controllerTarget = 'keyboard';
+  chromeSend('open-controller-keyboard', { mode: mode || 'page' });
+}
+
+function pageAction(name, arg) {
+  const wc = controllerWc();
+  if (!wc || wc.isDestroyed()) return Promise.resolve(null);
+  const call =
+    arg === undefined
+      ? `window.__streamhubController && window.__streamhubController.${name}()`
+      : `window.__streamhubController && window.__streamhubController.${name}(${JSON.stringify(arg)})`;
+  const result = wc.executeJavaScript(call, true).catch((err) => {
+    if (process.env.STREAMHUB_DEBUG_GAMEPAD === '1') {
+      console.warn('[gamepad] page action failed', name, err && err.message);
+    }
+    return null;
+  });
+  if (process.env.STREAMHUB_DEBUG_GAMEPAD === '1') {
+    result.then((res) => console.log('[gamepad] page', name, arg, JSON.stringify(res)));
+  }
+  return result;
+}
+
+function pageScroll(dy) {
+  const wc = controllerWc();
+  const view = viewManager && viewManager.active;
+  if (!wc || wc.isDestroyed() || !view) return;
+  const b = view.getBounds();
+  wc.sendInputEvent({
+    type: 'mouseWheel',
+    x: Math.max(1, Math.floor(b.width / 2)),
+    y: Math.max(1, Math.floor(b.height / 2)),
+    deltaX: 0,
+    // A positive wheel delta scrolls down, and a positive left-stick Y is a push down.
+    deltaY: Math.round(dy),
+    canScroll: true,
+  });
+}
+
+function pageCursorMove(dx, dy) {
+  const wc = controllerWc();
+  const view = viewManager && viewManager.active;
+  if (!wc || wc.isDestroyed() || !view) return;
+  const b = view.getBounds();
+  controllerCursor.x = Math.max(0, Math.min(b.width, controllerCursor.x + dx));
+  controllerCursor.y = Math.max(0, Math.min(b.height, controllerCursor.y + dy));
+  wc.sendInputEvent({
+    type: 'mouseMove',
+    x: Math.round(controllerCursor.x),
+    y: Math.round(controllerCursor.y),
+  });
+}
+
+function pageCursorClick() {
+  const wc = controllerWc();
+  if (!wc || wc.isDestroyed()) return;
+  const x = Math.round(controllerCursor.x);
+  const y = Math.round(controllerCursor.y);
+  wc.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount: 1 });
+  wc.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount: 1 });
+}
+
+// A real click from the page controller's point. Dismissal returns a button's centre instead of
+// clicking it in script, because YouTube and Disney+ ignore an untrusted el.click() on their
+// skip buttons; a mouse event from the browser process they do obey. Page coordinates are CSS
+// pixels, so they are scaled by the view's zoom to reach the webContents' device-independent space.
+function pageClickAt(x, y) {
+  const wc = controllerWc();
+  if (!wc || wc.isDestroyed()) return;
+  const zoom = typeof wc.getZoomFactor === 'function' ? wc.getZoomFactor() : 1;
+  const px = Math.round(x * zoom);
+  const py = Math.round(y * zoom);
+  wc.sendInputEvent({ type: 'mouseMove', x: px, y: py });
+  wc.sendInputEvent({ type: 'mouseDown', x: px, y: py, button: 'left', clickCount: 1 });
+  wc.sendInputEvent({ type: 'mouseUp', x: px, y: py, button: 'left', clickCount: 1 });
+}
+
+// Move the controller between the panes of a grid. Kept in the page target, so the sidebar's own
+// R3 ("close this pane") still means what it does while the sidebar has the pad.
+function cyclePane(dir) {
+  if (!gridMode || gridPanes.length < 2 || !viewManager || !viewManager.active) return false;
+  const key = viewManager.active.__viewKey;
+  const i = Math.max(0, gridPanes.findIndex((p) => p.paneId === key));
+  const pane = gridPanes[(i + dir + gridPanes.length) % gridPanes.length];
+  if (!viewManager.setActiveKey(pane.paneId)) return false;
+  activeServiceId = pane.serviceId;
+  broadcast();
+  return true;
+}
+
+// Draw the active-pane frame on the page that has the controller, and clear it from the rest. The
+// page owns the pixels, so this has to go in through the injected controller; a view that never
+// loaded a document simply ignores it.
+function applyActivePaneFrame() {
+  if (!viewManager) return;
+  const active = viewManager.active;
+  const views = viewManager.grid && viewManager.grid.length ? viewManager.grid : active ? [active] : [];
+  const showFrame = gridMode && views.length > 1;
+  for (const view of views) {
+    const wc = view.webContents;
+    if (!wc || wc.isDestroyed()) continue;
+    const on = showFrame && view === active;
+    wc.executeJavaScript(
+      `window.__streamhubController && window.__streamhubController.setActive(${on})`,
+    ).catch(() => {});
+  }
+}
+
+function controllerGlobal(button) {
+  if (button === BTN.LB) {
+    // The sidebar's own renderer knows whether it is stowed (auto-hidden), pinned open or collapsed
+    // to a rail, so it decides what "open/close" means right now. Main only makes sure the pad is
+    // pointed at the chrome, so the d-pad can walk the list that just appeared.
+    setControllerTarget('chrome');
+    chromeSend('controller-toggle-sidebar');
+    return true;
+  }
+  if (button === BTN.RB) {
+    const toChrome = controllerTarget === 'page';
+    setControllerTarget(toChrome ? 'chrome' : 'page');
+    // Coming back to the sidebar from the page means "show it": the sidebar is hidden while the
+    // picture has the pad, so toggling target alone would hand the d-pad to something invisible.
+    if (toChrome) chromeSend('controller-show-sidebar');
+    return true;
+  }
+  if (button === BTN.START && controllerTarget !== 'keyboard') {
+    setControllerTarget('chrome');
+    chromeSend('open-palette');
+    return true;
+  }
+  if (button === BTN.GUIDE) {
+    if (baseWindow && !baseWindow.isDestroyed()) {
+      baseWindow.setFullScreen(!baseWindow.isFullScreen());
+    }
+    return true;
+  }
+  if (button === BTN.BACK) {
+    // The chrome owns Back while it has the pad: a settings sheet, the quick switch, a service
+    // menu, then the sidebar itself, are all things Back should close before it means "go back in
+    // the site". The page target still goes straight to history.
+    if (controllerTarget === 'chrome' || controllerTarget === 'keyboard') {
+      chromeSend('gamepad-input', BTN.BACK, true);
+      return true;
+    }
+    if (viewManager) viewManager.goBack();
+    return true;
+  }
+  return false;
+}
+
+function onControllerButton(button, pressed) {
+  // While the on-screen keyboard is up every button belongs to it: B closes it, Start submits, the
+  // d-pad moves around the keys. Global shortcuts would otherwise steal RB or Start mid-word.
+  if (controllerTarget === 'keyboard') {
+    chromeSend('gamepad-input', button, pressed);
+    return;
+  }
+  if (!pressed) {
+    if (controllerTarget === 'chrome') chromeSend('gamepad-input', button, false);
+    return;
+  }
+  if (controllerGlobal(button)) return;
+
+  if (controllerTarget === 'chrome' || controllerTarget === 'keyboard') {
+    chromeSend('gamepad-input', button, true);
+    return;
+  }
+
+  // Page mode.
+  // In a grid, the stick clicks move the controller between panes: with two tiles that is the
+  // simple "swap" the couch needs, and the active one wears a frame so it is clear which it is.
+  if (gridMode && gridPanes.length > 1 && button === BTN.L3) cyclePane(-1);
+  else if (gridMode && gridPanes.length > 1 && button === BTN.R3) cyclePane(1);
+  else if (button === BTN.UP) pageAction('move', 'up');
+  else if (button === BTN.DOWN) pageAction('move', 'down');
+  else if (button === BTN.LEFT) pageAction('move', 'left');
+  else if (button === BTN.RIGHT) pageAction('move', 'right');
+  else if (button === BTN.A) {
+    pageAction('activate').then((res) => {
+      if (res && res.input) openControllerKeyboard('page');
+    });
+  } else if (button === BTN.B) pageAction('back');
+  else if (button === BTN.X) {
+    // Skip an ad / close a popup with a real click at the button, not a scripted one the site
+    // ignores. The page tells us where the button is; we click it as the browser would.
+    pageAction('dismiss').then((res) => {
+      if (res && res.ok && typeof res.x === 'number') pageClickAt(res.x, res.y);
+    });
+  } else if (button === BTN.Y) pageAction('media', 'playpause');
+  else if (button === BTN.LT) pageAction('media', 'back');
+  else if (button === BTN.RT) pageAction('media', 'forward');
+  else if (button === BTN.L3) pageAction('media', 'mute');
+  else if (button === BTN.R3) pageCursorClick();
+}
+
+function onControllerAxis(axis, value) {
+  if (axis === 0) controllerAxes.leftX = value;
+  else if (axis === 1) controllerAxes.leftY = value;
+  else if (axis === 2) controllerAxes.rightX = value;
+  else if (axis === 3) controllerAxes.rightY = value;
+}
+
+function startAxisTicker() {
+  clearInterval(axisTimer);
+  axisTimer = setInterval(() => {
+    if (controllerTarget !== 'page') return;
+    const { leftY, rightX, rightY } = controllerAxes;
+    if (Math.abs(leftY) > 0.18) pageScroll(leftY * 140);
+    if (Math.abs(rightX) > 0.18 || Math.abs(rightY) > 0.18) {
+      pageCursorMove(rightX * 16, rightY * 16);
+    }
+  }, 50);
+  axisTimer.unref?.();
+}
+
+function injectPageController(view) {
+  const wc = view && view.webContents;
+  if (!wc || wc.isDestroyed()) return;
+  const debug = process.env.STREAMHUB_DEBUG_GAMEPAD === '1';
+  wc.executeJavaScript(PAGE_CONTROLLER_SOURCE, true)
+    .then((res) => {
+      if (debug) console.log('[gamepad] controller injected into', wc.getURL(), res);
+      // A tile that navigated has lost its frame along with the old document; put the active-pane
+      // frame back on the pane that has the controller.
+      if (gridMode) applyActivePaneFrame();
+    })
+    .catch((err) => {
+      if (debug) console.warn('[gamepad] controller injection failed', wc.getURL(), err && err.message);
+    });
+}
+
+function startGamepadReader() {
+  if (process.platform !== 'linux' || gamepadReader) return;
+  const debug = process.env.STREAMHUB_DEBUG_GAMEPAD === '1';
+  const allowVirtual = process.env.STREAMHUB_ALLOW_VIRTUAL_GAMEPADS === '1';
+  const reader = new GamepadReader({ debug, allowVirtual });
+  gamepadReader = reader;
+  reader.on('button', onControllerButton);
+  reader.on('axis', onControllerAxis);
+  reader.on('device', (path) => {
+    if (debug) console.log('[gamepad] device opened', path);
+    if (viewManager && viewManager.active) injectPageController(viewManager.active);
+    setControllerTarget('chrome');
+  });
+  reader.on('device-gone', (path) => {
+    if (debug) console.log('[gamepad] device gone', path);
+  });
+  reader.on('error', (path, err) => {
+    console.warn('[gamepad] cannot read', path, err && err.message);
+  });
+  reader.start();
+  startAxisTicker();
+}
+
+function stopGamepadReader() {
+  if (!gamepadReader) return;
+  clearInterval(axisTimer);
+  axisTimer = null;
+  gamepadReader.stop();
+  gamepadReader = null;
+}
+
 // A film still playing is stopped first, and the stop report given a moment to reach the server:
 // otherwise the process exits mid-request and the resume point is lost. Closing the window gets
 // here the same way — the window's closed handler stops the player, and window-all-closed quits.
